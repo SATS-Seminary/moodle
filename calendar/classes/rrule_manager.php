@@ -24,7 +24,6 @@
 
 namespace core_calendar;
 
-use calendar_event;
 use DateInterval;
 use DateTime;
 use moodle_exception;
@@ -224,7 +223,7 @@ class rrule_manager {
     /**
      * Create events for specified rrule.
      *
-     * @param calendar_event $passedevent Properties of event to create.
+     * @param \calendar_event $passedevent Properties of event to create.
      * @throws moodle_exception
      */
     public function create_events($passedevent) {
@@ -246,7 +245,7 @@ class rrule_manager {
 
         // Adjust the parent event's timestart, if necessary.
         if (count($eventtimes) > 0 && !in_array($eventrec->timestart, $eventtimes)) {
-            $calevent = new calendar_event($eventrec);
+            $calevent = new \calendar_event($eventrec);
             $updatedata = (object)['timestart' => $eventtimes[0], 'repeatid' => $eventrec->id];
             $calevent->update($updatedata, false);
             $eventrec->timestart = $calevent->timestart;
@@ -720,7 +719,21 @@ class rrule_manager {
             $cloneevent->repeatid = $event->id;
             $cloneevent->timestart = $time;
             unset($cloneevent->id);
-            calendar_event::create($cloneevent, false);
+            \calendar_event::create($cloneevent, false);
+        }
+
+        // If COUNT rule is defined and the number of the generated event times is less than the the COUNT rule,
+        // repeat the processing until the COUNT rule is satisfied.
+        if ($count !== false && $count > 0) {
+            // Set count to the remaining counts.
+            $this->count = $count;
+            // Clone the original event, but set the timestart to the last generated event time.
+            $tmpevent = clone($event);
+            $tmpevent->timestart = end($eventtimes);
+            // Generate the additional event times.
+            $additionaleventtimes = $this->generate_recurring_event_times($tmpevent);
+            // Create the additional events.
+            $this->create_recurring_events($event, $additionaleventtimes);
         }
     }
 
