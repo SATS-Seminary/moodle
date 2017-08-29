@@ -237,6 +237,9 @@ function file_postupdate_standard_editor($data, $field, array $options, $context
     if (!isset($options['maxbytes'])) {
         $options['maxbytes'] = 0; // unlimited
     }
+    if (!isset($options['removeorphaneddrafts'])) {
+        $options['removeorphaneddrafts'] = false; // Don't remove orphaned draft files by default.
+    }
 
     if ($options['trusttext']) {
         $data->{$field.'trust'} = trusttext_trusted($context);
@@ -249,6 +252,10 @@ function file_postupdate_standard_editor($data, $field, array $options, $context
     if ($options['maxfiles'] == 0 or is_null($filearea) or is_null($itemid) or empty($editor['itemid'])) {
         $data->{$field} = $editor['text'];
     } else {
+        // Clean the user drafts area of any files not referenced in the editor text.
+        if ($options['removeorphaneddrafts']) {
+            file_remove_editor_orphaned_files($editor);
+        }
         $data->{$field} = file_save_draft_area_files($editor['itemid'], $context->id, $component, $filearea, $itemid, $options, $editor['text'], $options['forcehttps']);
     }
     $data->{$field.'format'} = $editor['format'];
@@ -503,9 +510,29 @@ function file_rewrite_pluginfile_urls($text, $file, $contextid, $component, $fil
  * (more information will be added as needed).
  */
 function file_get_draft_area_info($draftitemid, $filepath = '/') {
-    global $CFG, $USER;
+    global $USER;
 
     $usercontext = context_user::instance($USER->id);
+    return file_get_file_area_info($usercontext->id, 'user', 'draft', $draftitemid, $filepath);
+}
+
+/**
+ * Returns information about files in an area.
+ *
+ * @param int $contextid context id
+ * @param string $component component
+ * @param string $filearea file area name
+ * @param int $itemid item id or all files if not specified
+ * @param string $filepath path to the directory from which the information have to be retrieved.
+ * @return array with the following entries:
+ *      'filecount' => number of files in the area.
+ *      'filesize' => total size of the files in the area.
+ *      'foldercount' => number of folders in the area.
+ *      'filesize_without_references' => total size of the area excluding file references.
+ * @since Moodle 3.4
+ */
+function file_get_file_area_info($contextid, $component, $filearea, $itemid = 0, $filepath = '/') {
+
     $fs = get_file_storage();
 
     $results = array(
@@ -515,11 +542,8 @@ function file_get_draft_area_info($draftitemid, $filepath = '/') {
         'filesize_without_references' => 0
     );
 
-    if ($filepath != '/') {
-        $draftfiles = $fs->get_directory_files($usercontext->id, 'user', 'draft', $draftitemid, $filepath, true, true);
-    } else {
-        $draftfiles = $fs->get_area_files($usercontext->id, 'user', 'draft', $draftitemid, 'id', true);
-    }
+    $draftfiles = $fs->get_directory_files($contextid, $component, $filearea, $itemid, $filepath, true, true);
+
     foreach ($draftfiles as $file) {
         if ($file->is_directory()) {
             $results['foldercount'] += 1;
@@ -775,6 +799,38 @@ function file_restore_source_field_from_draft_file($storedfile) {
     }
     return $storedfile;
 }
+
+/**
+ * Removes those files from the user drafts filearea which are not referenced in the editor text.
+ *
+ * @param stdClass $editor The online text editor element from the submitted form data.
+ */
+function file_remove_editor_orphaned_files($editor) {
+    global $CFG, $USER;
+
+    // Find those draft files included in the text, and generate their hashes.
+    $context = context_user::instance($USER->id);
+    $baseurl = $CFG->wwwroot . '/draftfile.php/' . $context->id . '/user/draft/' . $editor['itemid'] . '/';
+    $pattern = "/" . preg_quote($baseurl, '/') . "(.+?)[\?\"']/";
+    preg_match_all($pattern, $editor['text'], $matches);
+    $usedfilehashes = [];
+    foreach ($matches[1] as $matchedfilename) {
+        $matchedfilename = urldecode($matchedfilename);
+        $usedfilehashes[] = \file_storage::get_pathname_hash($context->id, 'user', 'draft', $editor['itemid'], '/',
+                                                             $matchedfilename);
+    }
+
+    // Now, compare the hashes of all draft files, and remove those which don't match used files.
+    $fs = get_file_storage();
+    $files = $fs->get_area_files($context->id, 'user', 'draft', $editor['itemid'], 'id', false);
+    foreach ($files as $file) {
+        $tmphash = $file->get_pathnamehash();
+        if (!in_array($tmphash, $usedfilehashes)) {
+            $file->delete();
+        }
+    }
+}
+
 /**
  * Saves files from a draft file area to a real one (merging the list of files).
  * Can rewrite URLs in some content at the same time if desired.
@@ -955,7 +1011,9 @@ function file_save_draft_area_files($draftitemid, $contextid, $component, $filea
                 if (!empty($repoid)) {
                     $context = context::instance_by_id($contextid, MUST_EXIST);
                     $repo = repository::get_repository_by_id($repoid, $context);
-
+                    if (!empty($options)) {
+                        $repo->options = $options;
+                    }
                     $file_record['repositoryid'] = $repoid;
                     // This hook gives the repo a place to do some house cleaning, and update the $reference before it's saved
                     // to the file store. E.g. transfer ownership of the file to a system account etc.
@@ -3869,9 +3927,10 @@ class curl_cache {
  * @param null|string $preview the preview mode, defaults to serving the original file
  * @param boolean $offline If offline is requested - don't serve a redirect to an external file, return a file suitable for viewing
  *                         offline (e.g. mobile app).
+ * @param bool $embed Whether this file will be served embed into an iframe.
  * @todo MDL-31088 file serving improments
  */
-function file_pluginfile($relativepath, $forcedownload, $preview = null, $offline = false) {
+function file_pluginfile($relativepath, $forcedownload, $preview = null, $offline = false, $embed = false) {
     global $DB, $CFG, $USER;
     // relative path must start with '/'
     if (!$relativepath) {
@@ -3895,7 +3954,7 @@ function file_pluginfile($relativepath, $forcedownload, $preview = null, $offlin
 
     $fs = get_file_storage();
 
-    $sendfileoptions = ['preview' => $preview, 'offline' => $offline];
+    $sendfileoptions = ['preview' => $preview, 'offline' => $offline, 'embed' => $embed];
 
     // ========================================================================================================================
     if ($component === 'blog') {
@@ -4630,7 +4689,18 @@ function file_pluginfile($relativepath, $forcedownload, $preview = null, $offlin
             if (!plugin_supports('mod', $modname, FEATURE_MOD_INTRO, true)) {
                 send_file_not_found();
             }
-            require_course_login($course, true, $cm);
+
+            // Require login to the course first (without login to the module).
+            require_course_login($course, true);
+
+            // Now check if module is available OR it is restricted but the intro is shown on the course page.
+            $cminfo = cm_info::create($cm);
+            if (!$cminfo->uservisible) {
+                if (!$cm->showdescription || !$cminfo->is_visible_on_course_page()) {
+                    // Module intro is not visible on the course page and module is not available, show access error.
+                    require_course_login($course, true, $cminfo);
+                }
+            }
 
             // all users may access it
             $filename = array_pop($args);

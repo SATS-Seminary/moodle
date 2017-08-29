@@ -674,13 +674,15 @@ class core_calendar_externallib_testcase extends externallib_advanced_testcase {
      */
     public function test_get_calendar_events_override() {
         $user = $this->getDataGenerator()->create_user();
+        $user2 = $this->getDataGenerator()->create_user();
         $teacher = $this->getDataGenerator()->create_user();
         $anotheruser = $this->getDataGenerator()->create_user();
         $course = $this->getDataGenerator()->create_course();
         $generator = $this->getDataGenerator()->get_plugin_generator('mod_assign');
         $moduleinstance = $generator->create_instance(['course' => $course->id]);
 
-        $this->getDataGenerator()->enrol_user($user->id, $course->id);
+        $this->getDataGenerator()->enrol_user($user->id, $course->id, 'student');
+        $this->getDataGenerator()->enrol_user($user2->id, $course->id, 'student');
         $this->getDataGenerator()->enrol_user($teacher->id, $course->id, 'editingteacher');
         $this->resetAfterTest(true);
         $this->setAdminUser();
@@ -692,11 +694,12 @@ class core_calendar_externallib_testcase extends externallib_advanced_testcase {
         ];
 
         $now = time();
+        // Create two events - one for everybody in the course and one only for the first student.
         $event1 = $this->create_calendar_event('Base event', 0, 'due', 0, $now + DAYSECS, $params + ['courseid' => $course->id]);
         $event2 = $this->create_calendar_event('User event', $user->id, 'due', 0, $now + 2*DAYSECS, $params + ['courseid' => 0]);
 
-        // Retrieve course events for teacher - only one "Base event" is returned.
-        $this->setUser($teacher);
+        // Retrieve course events for the second student - only one "Base event" is returned.
+        $this->setUser($user2);
         $paramevents = array('courseids' => array($course->id));
         $options = array ('siteevents' => true, 'userevents' => true);
         $events = core_calendar_external::get_calendar_events($paramevents, $options);
@@ -705,7 +708,7 @@ class core_calendar_externallib_testcase extends externallib_advanced_testcase {
         $this->assertEquals(0, count($events['warnings']));
         $this->assertEquals('Base event', $events['events'][0]['name']);
 
-        // Retrieve events for user - both events are returned.
+        // Retrieve events for the first student - both events are returned.
         $this->setUser($user);
         $events = core_calendar_external::get_calendar_events($paramevents, $options);
         $events = external_api::clean_returnvalue(core_calendar_external::get_calendar_events_returns(), $events);
@@ -1263,5 +1266,152 @@ class core_calendar_externallib_testcase extends externallib_advanced_testcase {
         $this->assertEquals('Event 1', $groupedbycourse[$course1->id][0]['name']);
         $this->assertCount(1, $groupedbycourse[$course2->id]);
         $this->assertEquals('Event 3', $groupedbycourse[$course2->id][0]['name']);
+    }
+
+    /**
+     * Test for deleting module events.
+     */
+    public function test_delete_calendar_events_for_modules() {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        $course = $this->getDataGenerator()->create_course();
+        $nexttime = time() + DAYSECS;
+        $this->getDataGenerator()->create_module('assign', ['course' => $course->id, 'duedate' => $nexttime]);
+        $events = calendar_get_events(time(), $nexttime, true, true, true);
+        $this->assertCount(1, $events);
+        $params = [];
+        foreach ($events as $event) {
+            $params[] = [
+                'eventid' => $event->id,
+                'repeat' => false
+            ];
+        }
+
+        $this->expectException('moodle_exception');
+        core_calendar_external::delete_calendar_events($params);
+    }
+
+    /**
+     * Updating the event start day should change the date value but leave
+     * the time of day unchanged.
+     */
+    public function test_update_event_start_day() {
+        $generator = $this->getDataGenerator();
+        $user = $generator->create_user();
+        $roleid = $generator->create_role();
+        $context = \context_system::instance();
+        $originalstarttime = new DateTimeImmutable('2017-01-1T15:00:00+08:00');
+        $newstartdate = new DateTimeImmutable('2018-02-2T10:00:00+08:00');
+        $expected = new DateTimeImmutable('2018-02-2T15:00:00+08:00');
+
+        $generator->role_assign($roleid, $user->id, $context->id);
+        assign_capability('moodle/calendar:manageownentries', CAP_ALLOW, $roleid, $context, true);
+
+        $this->setUser($user);
+        $this->resetAfterTest(true);
+
+        $event = $this->create_calendar_event(
+            'Test event',
+            $user->id,
+            'user',
+            0,
+            null,
+            [
+                'courseid' => 0,
+                'timestart' => $originalstarttime->getTimestamp()
+            ]
+        );
+
+        $result = core_calendar_external::update_event_start_day($event->id, $newstartdate->getTimestamp());
+        $result = external_api::clean_returnvalue(
+            core_calendar_external::update_event_start_day_returns(),
+            $result
+        );
+
+        $this->assertEquals($expected->getTimestamp(), $result['event']['timestart']);
+    }
+
+    /**
+     * A user should not be able to edit an event that they don't have
+     * capabilities for.
+     */
+    public function test_update_event_start_day_no_permission() {
+        $generator = $this->getDataGenerator();
+        $user = $generator->create_user();
+        $roleid = $generator->create_role();
+        $context = \context_system::instance();
+        $originalstarttime = new DateTimeImmutable('2017-01-1T15:00:00+08:00');
+        $newstartdate = new DateTimeImmutable('2018-02-2T10:00:00+08:00');
+        $expected = new DateTimeImmutable('2018-02-2T15:00:00+08:00');
+
+        $generator->role_assign($roleid, $user->id, $context->id);
+        assign_capability('moodle/calendar:manageownentries', CAP_ALLOW, $roleid, $context, true);
+
+        $this->setUser($user);
+        $this->resetAfterTest(true);
+
+        $event = $this->create_calendar_event(
+            'Test event',
+            $user->id,
+            'user',
+            0,
+            null,
+            [
+                'courseid' => 0,
+                'timestart' => $originalstarttime->getTimestamp()
+            ]
+        );
+
+        assign_capability('moodle/calendar:manageownentries', CAP_PROHIBIT, $roleid, $context, true);
+        $this->expectException('moodle_exception');
+        $result = core_calendar_external::update_event_start_day($event->id, $newstartdate->getTimestamp());
+        $result = external_api::clean_returnvalue(
+            core_calendar_external::update_event_start_day_returns(),
+            $result
+        );
+    }
+
+    /**
+     * A user should not be able to update a module event.
+     */
+    public function test_update_event_start_day_module_event() {
+        $generator = $this->getDataGenerator();
+        $user = $generator->create_user();
+        $course = $generator->create_course();
+        $plugingenerator = $generator->get_plugin_generator('mod_assign');
+        $moduleinstance = $plugingenerator->create_instance(['course' => $course->id]);
+        $roleid = $generator->create_role();
+        $context = \context_course::instance($course->id);
+        $originalstarttime = new DateTimeImmutable('2017-01-1T15:00:00+08:00');
+        $newstartdate = new DateTimeImmutable('2018-02-2T10:00:00+08:00');
+        $expected = new DateTimeImmutable('2018-02-2T15:00:00+08:00');
+
+        $generator->role_assign($roleid, $user->id, $context->id);
+        $generator->enrol_user($user->id, $course->id);
+
+        $this->setUser($user);
+        $this->resetAfterTest(true);
+
+        $event = $this->create_calendar_event(
+            'Test event',
+            $user->id,
+            'user',
+            0,
+            null,
+            [
+                'modulename' => 'assign',
+                'instance' => $moduleinstance->id,
+                'courseid' => $course->id,
+                'timestart' => $originalstarttime->getTimestamp()
+            ]
+        );
+
+        assign_capability('moodle/calendar:manageentries', CAP_ALLOW, $roleid, $context, true);
+        $this->expectException('moodle_exception');
+        $result = core_calendar_external::update_event_start_day($event->id, $newstartdate->getTimestamp());
+        $result = external_api::clean_returnvalue(
+            core_calendar_external::update_event_start_day_returns(),
+            $result
+        );
     }
 }

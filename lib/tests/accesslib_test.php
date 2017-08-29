@@ -57,12 +57,8 @@ class core_accesslib_testcase extends advanced_testcase {
         $this->setAdminUser();
         load_all_capabilities();
 
-        $this->assertNotEmpty($ACCESSLIB_PRIVATE->rolepermissions);
-        $this->assertNotEmpty($ACCESSLIB_PRIVATE->rolepermissions);
         $this->assertNotEmpty($ACCESSLIB_PRIVATE->accessdatabyuser);
         accesslib_clear_all_caches_for_unit_testing();
-        $this->assertEmpty($ACCESSLIB_PRIVATE->rolepermissions);
-        $this->assertEmpty($ACCESSLIB_PRIVATE->rolepermissions);
         $this->assertEmpty($ACCESSLIB_PRIVATE->dirtycontexts);
         $this->assertEmpty($ACCESSLIB_PRIVATE->accessdatabyuser);
     }
@@ -93,9 +89,9 @@ class core_accesslib_testcase extends advanced_testcase {
 
             $this->assertTrue(is_array($access));
             $this->assertTrue(is_array($access['ra']));
-            $this->assertTrue(is_array($access['rdef']));
-            $this->assertTrue(isset($access['rdef_count']));
-            $this->assertTrue(is_array($access['loaded']));
+            $this->assertFalse(isset($access['rdef']));
+            $this->assertFalse(isset($access['rdef_count']));
+            $this->assertFalse(isset($access['loaded']));
             $this->assertTrue(isset($access['time']));
             $this->assertTrue(is_array($access['rsw']));
         }
@@ -1563,6 +1559,42 @@ class core_accesslib_testcase extends advanced_testcase {
 
         $roles = get_user_roles_in_course($user3->id, $course->id);
         $this->assertSame('', $roles);
+    }
+
+    /**
+     * Test get_user_roles and get_users_roles
+     */
+    public function test_get_user_roles() {
+        global $DB, $CFG;
+
+        $this->resetAfterTest();
+
+        $teacherrole = $DB->get_record('role', array('shortname'=>'editingteacher'), '*', MUST_EXIST);
+        $studentrole = $DB->get_record('role', array('shortname'=>'student'), '*', MUST_EXIST);
+        $course = $this->getDataGenerator()->create_course();
+        $coursecontext = context_course::instance($course->id);
+        $teacherrename = (object)array('roleid'=>$teacherrole->id, 'name'=>'Učitel', 'contextid'=>$coursecontext->id);
+        $DB->insert_record('role_names', $teacherrename);
+
+        $roleids = explode(',', $CFG->profileroles); // Should include teacher and student in new installs.
+
+        $user1 = $this->getDataGenerator()->create_user();
+        role_assign($teacherrole->id, $user1->id, $coursecontext->id);
+        role_assign($studentrole->id, $user1->id, $coursecontext->id);
+        $user2 = $this->getDataGenerator()->create_user();
+        role_assign($studentrole->id, $user2->id, $coursecontext->id);
+        $user3 = $this->getDataGenerator()->create_user();
+
+        $u1roles = get_user_roles($coursecontext, $user1->id);
+
+        $u2roles = get_user_roles($coursecontext, $user2->id);
+
+        $allroles = get_users_roles($coursecontext);
+        $specificuserroles = get_users_roles($coursecontext, [$user1->id, $user2->id]);
+        $this->assertEquals($u1roles, $allroles[$user1->id]);
+        $this->assertEquals($u1roles, $specificuserroles[$user1->id]);
+        $this->assertEquals($u2roles, $allroles[$user2->id]);
+        $this->assertEquals($u2roles, $specificuserroles[$user2->id]);
     }
 
     /**

@@ -194,7 +194,6 @@ module.exports = function(grunt) {
                         rules: {
                             // These rules have to be disabled in .stylelintrc for scss compat.
                             "at-rule-no-unknown": true,
-                            "no-browser-hacks": [true, {"severity": "warning"}]
                         }
                     }
                 },
@@ -211,7 +210,6 @@ module.exports = function(grunt) {
                         rules: {
                             // These rules have to be disabled in .stylelintrc for scss compat.
                             "at-rule-no-unknown": true,
-                            "no-browser-hacks": [true, {"severity": "warning"}]
                         }
                     }
                 }
@@ -338,7 +336,7 @@ module.exports = function(grunt) {
             opts: {stdio: 'inherit', env: process.env}
         }, function(error, result, code) {
             // Propagate the exit code.
-            done(code);
+            done(code === 0);
         });
     };
 

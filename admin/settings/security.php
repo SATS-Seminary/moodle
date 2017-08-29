@@ -18,6 +18,11 @@ if ($hassiteconfig) { // speedup for non-admins, add all caps used on this page
     $temp->add(new admin_setting_configcheckbox('forceloginforprofiles', new lang_string('forceloginforprofiles', 'admin'), new lang_string('configforceloginforprofiles', 'admin'), 1));
     $temp->add(new admin_setting_configcheckbox('forceloginforprofileimage', new lang_string('forceloginforprofileimage', 'admin'), new lang_string('forceloginforprofileimage_help', 'admin'), 0));
     $temp->add(new admin_setting_configcheckbox('opentogoogle', new lang_string('opentogoogle', 'admin'), new lang_string('configopentogoogle', 'admin'), 0));
+    $temp->add(new admin_setting_configselect('allowindexing', new lang_string('allowindexing', 'admin'), new lang_string('allowindexing_desc', 'admin'),
+        0,
+        array(0 => new lang_string('allowindexingexceptlogin', 'admin'),
+              1 => new lang_string('allowindexingeverywhere', 'admin'),
+              2 => new lang_string('allowindexingnowhere', 'admin'))));
     $temp->add(new admin_setting_pickroles('profileroles',
         new lang_string('profileroles','admin'),
         new lang_string('configprofileroles', 'admin'),
@@ -102,6 +107,10 @@ if ($hassiteconfig) { // speedup for non-admins, add all caps used on this page
     $temp->add(new admin_setting_configcheckbox('passwordchangetokendeletion',
         new lang_string('passwordchangetokendeletion', 'admin'),
         new lang_string('passwordchangetokendeletion_desc', 'admin'), 0));
+
+    $temp->add(new admin_setting_configduration('tokenduration',
+        new lang_string('tokenduration', 'admin'),
+        new lang_string('tokenduration_desc', 'admin'), 12 * WEEKSECS, WEEKSECS));
 
     $temp->add(new admin_setting_configcheckbox('groupenrolmentkeypolicy', new lang_string('groupenrolmentkeypolicy', 'admin'), new lang_string('groupenrolmentkeypolicy_desc', 'admin'), 1));
     $temp->add(new admin_setting_configcheckbox('disableuserimages', new lang_string('disableuserimages', 'admin'), new lang_string('configdisableuserimages', 'admin'), 0));

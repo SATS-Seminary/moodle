@@ -692,6 +692,10 @@ class assign {
             // In the case of upgrades the coursemodule has not been set,
             // so we need to wait before calling these two.
             $this->update_calendar($formdata->coursemodule);
+            if (!empty($formdata->completionexpected)) {
+                \core_completion\api::update_completion_date_event($formdata->coursemodule, 'assign', $this->instance,
+                        $formdata->completionexpected);
+            }
             $this->update_gradebook(false, $formdata->coursemodule);
 
         }
@@ -1031,6 +1035,8 @@ class assign {
                        WHERE assignid =? AND cutoffdate <> 0",
                 array($data->timeshift, $this->get_instance()->id));
 
+            // Any changes to the list of dates that needs to be rolled should be same during course restore and course reset.
+            // See MDL-9367.
             shift_course_mod_dates('assign',
                                     array('duedate', 'allowsubmissionsfromdate', 'cutoffdate'),
                                     $data->timeshift,
@@ -1296,6 +1302,9 @@ class assign {
         }
 
         $this->update_calendar($this->get_course_module()->id);
+        $completionexpected = (!empty($formdata->completionexpected)) ? $formdata->completionexpected : null;
+        \core_completion\api::update_completion_date_event($this->get_course_module()->id, 'assign', $this->instance,
+                $completionexpected);
         $this->update_gradebook(false, $this->get_course_module()->id);
 
         $update = new stdClass();
@@ -2322,7 +2331,7 @@ class assign {
                 $uniqueid = 0;
                 if ($submission->blindmarking && !$submission->revealidentities) {
                     if (empty($submission->recordid)) {
-                        $uniqueid = self::get_uniqueid_for_user_static($submission->assignment, $user->id);
+                        $uniqueid = self::get_uniqueid_for_user_static($submission->assignment, $grader->id);
                     } else {
                         $uniqueid = $submission->recordid;
                     }
@@ -2880,7 +2889,12 @@ class assign {
             $item = $this->get_submission($submissionid);
 
             // Check permissions.
-            $this->require_view_submission($item->userid);
+            if (empty($item->userid)) {
+                // Group submission.
+                $this->require_view_group_submission($item->groupid);
+            } else {
+                $this->require_view_submission($item->userid);
+            }
             $o .= $this->get_renderer()->render(new assign_header($this->get_instance(),
                                                               $this->get_context(),
                                                               $this->show_intro(),
@@ -2935,11 +2949,17 @@ class assign {
      * @param assign_plugin $plugin - The assignment plugin
      */
     public function download_rewrite_pluginfile_urls($text, $user, $plugin) {
-        $groupmode = groups_get_activity_groupmode($this->get_course_module());
+        // The groupname prefix for the urls doesn't depend on the group mode of the assignment instance.
+        // Rather, it should be determined by checking the group submission settings of the instance,
+        // which is what download_submission() does when generating the file name prefixes.
         $groupname = '';
-        if ($groupmode) {
-            $groupid = groups_get_activity_group($this->get_course_module(), true);
-            $groupname = groups_get_group_name($groupid).'-';
+        if ($this->get_instance()->teamsubmission) {
+            $submissiongroup = $this->get_submission_group($user->id);
+            if ($submissiongroup) {
+                $groupname = $submissiongroup->name . '-';
+            } else {
+                $groupname = get_string('defaultteam', 'assign') . '-';
+            }
         }
 
         if ($this->is_blind_marking()) {
@@ -2952,10 +2972,14 @@ class assign {
             $prefix = clean_filename($prefix . '_' . $this->get_uniqueid_for_user($user->id) . '_');
         }
 
-        $subtype = $plugin->get_subtype();
-        $type = $plugin->get_type();
-        $prefix = $prefix . $subtype . '_' . $type . '_';
-
+        // Only prefix files if downloadasfolders user preference is NOT set.
+        if (!get_user_preferences('assign_downloadasfolders', 1)) {
+            $subtype = $plugin->get_subtype();
+            $type = $plugin->get_type();
+            $prefix = $prefix . $subtype . '_' . $type . '_';
+        } else {
+            $prefix = "";
+        }
         $result = str_replace('@@PLUGINFILE@@/', $prefix, $text);
 
         return $result;
@@ -3076,6 +3100,18 @@ class assign {
     }
 
     /**
+     * Throw an error if the permissions to view this users' group submission are missing.
+     *
+     * @param int $groupid Group id.
+     * @throws required_capability_exception
+     */
+    public function require_view_group_submission($groupid) {
+        if (!$this->can_view_group_submission($groupid)) {
+            throw new required_capability_exception($this->context, 'mod/assign:viewgrades', 'nopermission', '');
+        }
+    }
+
+    /**
      * Throw an error if the permissions to view this users submission are missing.
      *
      * @throws required_capability_exception
@@ -3163,7 +3199,9 @@ class assign {
         $groupname = '';
         if ($groupmode) {
             $groupid = groups_get_activity_group($this->get_course_module(), true);
-            $groupname = groups_get_group_name($groupid).'-';
+            if (!empty($groupid)) {
+                $groupname = groups_get_group_name($groupid) . '-';
+            }
         }
 
         // Construct the zip file name.
@@ -4017,8 +4055,9 @@ class assign {
         // Get markers to use in drop lists.
         $markingallocationoptions = array();
         if ($markingallocation) {
-            list($sort, $params) = users_order_by_sql();
-            $markers = get_users_by_capability($this->context, 'mod/assign:grade', '', $sort);
+            list($sort, $params) = users_order_by_sql('u');
+            // Only enrolled users could be assigned as potential markers.
+            $markers = get_enrolled_users($this->context, 'mod/assign:grade', 0, 'u.*', $sort);
             $markingallocationoptions[''] = get_string('filternone', 'assign');
             $markingallocationoptions[ASSIGN_MARKER_FILTER_NO_MARKER] = get_string('markerfilternomarker', 'assign');
             $viewfullnames = has_capability('moodle/site:viewfullnames', $this->context);
@@ -4644,8 +4683,9 @@ class assign {
             'usershtml' => $usershtml,
         );
 
-        list($sort, $params) = users_order_by_sql();
-        $markers = get_users_by_capability($this->get_context(), 'mod/assign:grade', '', $sort);
+        list($sort, $params) = users_order_by_sql('u');
+        // Only enrolled users could be assigned as potential markers.
+        $markers = get_enrolled_users($this->get_context(), 'mod/assign:grade', 0, 'u.*', $sort);
         $markerlist = array();
         foreach ($markers as $marker) {
             $markerlist[$marker->id] = fullname($marker);
@@ -4862,17 +4902,19 @@ class assign {
         }
 
         $cangrade = has_capability('mod/assign:grade', $this->get_context());
+        $hasgrade = $this->get_instance()->grade != GRADE_TYPE_NONE &&
+                        !is_null($gradebookgrade) && !is_null($gradebookgrade->grade);
+        $gradevisible = $cangrade || $this->get_instance()->grade == GRADE_TYPE_NONE ||
+                        (!is_null($gradebookgrade) && !$gradebookgrade->hidden);
         // If there is a visible grade, show the summary.
-        if (!is_null($gradebookgrade) && (!is_null($gradebookgrade->grade) || !$emptyplugins)
-                && ($cangrade || !$gradebookgrade->hidden)) {
+        if (($hasgrade || !$emptyplugins) && $gradevisible) {
 
             $gradefordisplay = null;
             $gradeddate = null;
             $grader = null;
             $gradingmanager = get_grading_manager($this->get_context(), 'mod_assign', 'submissions');
 
-            // Only show the grade if it is not hidden in gradebook.
-            if (!is_null($gradebookgrade->grade) && ($cangrade || !$gradebookgrade->hidden)) {
+            if ($hasgrade) {
                 if ($controller = $gradingmanager->get_active_controller()) {
                     $menu = make_grades_menu($this->get_instance()->grade);
                     $controller->set_grade_range($menu, $this->get_instance()->grade > 0);
@@ -6530,8 +6572,9 @@ class assign {
         if ($markingallocation) {
             $markingallocationoptions[''] = get_string('filternone', 'assign');
             $markingallocationoptions[ASSIGN_MARKER_FILTER_NO_MARKER] = get_string('markerfilternomarker', 'assign');
-            list($sort, $params) = users_order_by_sql();
-            $markers = get_users_by_capability($this->context, 'mod/assign:grade', '', $sort);
+            list($sort, $params) = users_order_by_sql('u');
+            // Only enrolled users could be assigned as potential markers.
+            $markers = get_enrolled_users($this->context, 'mod/assign:grade', 0, 'u.*', $sort);
             foreach ($markers as $marker) {
                 $markingallocationoptions[$marker->id] = fullname($marker);
             }
@@ -7165,8 +7208,9 @@ class assign {
             $this->get_instance()->markingallocation &&
             has_capability('mod/assign:manageallocations', $this->context)) {
 
-            list($sort, $params) = users_order_by_sql();
-            $markers = get_users_by_capability($this->context, 'mod/assign:grade', '', $sort);
+            list($sort, $params) = users_order_by_sql('u');
+            // Only enrolled users could be assigned as potential markers.
+            $markers = get_enrolled_users($this->context, 'mod/assign:grade', 0, 'u.*', $sort);
             $markerlist = array('' =>  get_string('choosemarker', 'assign'));
             $viewfullnames = has_capability('moodle/site:viewfullnames', $this->context);
             foreach ($markers as $marker) {
@@ -7585,8 +7629,9 @@ class assign {
             'usershtml' => ''   // initialise these parameters with real information.
         );
 
-        list($sort, $params) = users_order_by_sql();
-        $markers = get_users_by_capability($this->get_context(), 'mod/assign:grade', '', $sort);
+        list($sort, $params) = users_order_by_sql('u');
+        // Only enrolled users could be assigned as potential markers.
+        $markers = get_enrolled_users($this->get_context(), 'mod/assign:grade', 0, 'u.*', $sort);
         $markerlist = array();
         foreach ($markers as $marker) {
             $markerlist[$marker->id] = fullname($marker);
