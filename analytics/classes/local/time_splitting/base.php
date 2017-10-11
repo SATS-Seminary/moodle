@@ -231,9 +231,15 @@ abstract class base {
                 $range['start'], $range['end'], $samplesorigin);
         }
 
+        // Here we store samples which calculations are not all null.
+        $notnulls = array();
+
         // Fill the dataset samples with indicators data.
         $newcalculations = array();
         foreach ($indicators as $indicator) {
+
+            // Hook to allow indicators to store analysable-dependant data.
+            $indicator->fill_per_analysable_caches($this->analysable);
 
             // Per-range calculations.
             foreach ($ranges as $rangeindex => $range) {
@@ -247,13 +253,17 @@ abstract class base {
                 }
 
                 // Calculate the indicator for each sample in this time range.
-                list($samplesfeatures, $newindicatorcalculations) = $rangeindicator->calculate($sampleids,
+                list($samplesfeatures, $newindicatorcalculations, $indicatornotnulls) = $rangeindicator->calculate($sampleids,
                     $samplesorigin, $range['start'], $range['end'], $prevcalculations);
 
                 // Copy the features data to the dataset.
                 foreach ($samplesfeatures as $analysersampleid => $features) {
 
                     $uniquesampleid = $this->append_rangeindex($analysersampleid, $rangeindex);
+
+                    if (!isset($notnulls[$uniquesampleid]) && !empty($indicatornotnulls[$analysersampleid])) {
+                        $notnulls[$uniquesampleid] = $uniquesampleid;
+                    }
 
                     // Init the sample if it is still empty.
                     if (!isset($dataset[$uniquesampleid])) {
@@ -302,6 +312,15 @@ abstract class base {
         if (!$this->is_evaluating() && $newcalculations) {
             // Insert the remaining records.
             $DB->insert_records('analytics_indicator_calc', $newcalculations);
+        }
+
+        // Delete rows where all calculations are null.
+        // We still store the indicator calculation and we still store the sample id as
+        // processed so we don't have to process this sample again, but we exclude it
+        // from the dataset because it is not useful.
+        $nulls = array_diff_key($dataset, $notnulls);
+        foreach ($nulls as $uniqueid => $ignoredvalues) {
+            unset($dataset[$uniqueid]);
         }
 
         return $dataset;
@@ -371,12 +390,9 @@ abstract class base {
         $metadata = array(
             'timesplitting' => $this->get_id(),
             // If no target the first column is the sampleid, if target the last column is the target.
+            // This will need to be updated when we support unsupervised learning models.
             'nfeatures' => count(current($dataset)) - 1
         );
-        if ($target) {
-            $metadata['targetclasses'] = json_encode($target::get_classes());
-            $metadata['targettype'] = ($target->is_linear()) ? 'linear' : 'discrete';
-        }
 
         // The first 2 samples will be used to store metadata about the dataset.
         $metadatacolumns = [];

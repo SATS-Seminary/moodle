@@ -122,6 +122,22 @@ abstract class base extends \core_analytics\calculable {
     }
 
     /**
+     * Hook to allow indicators to pre-fill data that is shared accross time range calculations.
+     *
+     * Useful to fill analysable-dependant data that does not depend on the time ranges. Use
+     * instance vars to cache data that can be re-used across samples calculations but changes
+     * between time ranges (indicator instances are reset between time ranges to avoid unexpected
+     * problems).
+     *
+     * You are also responsible of emptying previous analysable caches.
+     *
+     * @param \core_analytics\analysable $analysable
+     * @return void
+     */
+    public function fill_per_analysable_caches(\core_analytics\analysable $analysable) {
+    }
+
+    /**
      * Calculates the indicator.
      *
      * Returns an array of values which size matches $sampleids size.
@@ -131,7 +147,7 @@ abstract class base extends \core_analytics\calculable {
      * @param integer $starttime Limit the calculation to this timestart
      * @param integer $endtime Limit the calculation to this timeend
      * @param array $existingcalculations Existing calculations of this indicator, indexed by sampleid.
-     * @return array array[0] with format [sampleid] = int[]|float[], array[1] with format [sampleid] = int|float
+     * @return array [0] = [$sampleid => int[]|float[]], [1] = [$sampleid => int|float], [2] = [$sampleid => $sampleid]
      */
     public function calculate($sampleids, $samplesorigin, $starttime = false, $endtime = false, $existingcalculations = array()) {
 
@@ -141,6 +157,7 @@ abstract class base extends \core_analytics\calculable {
 
         $calculations = array();
         $newcalculations = array();
+        $notnulls = array();
         foreach ($sampleids as $sampleid => $unusedsampleid) {
 
             if (isset($existingcalculations[$sampleid])) {
@@ -150,9 +167,12 @@ abstract class base extends \core_analytics\calculable {
                 $newcalculations[$sampleid] = $calculatedvalue;
             }
 
-            if (!is_null($calculatedvalue) && ($calculatedvalue > self::MAX_VALUE || $calculatedvalue < self::MIN_VALUE)) {
-                throw new \coding_exception('Calculated values should be higher than ' . self::MIN_VALUE .
-                    ' and lower than ' . self::MAX_VALUE . ' ' . $calculatedvalue . ' received');
+            if (!is_null($calculatedvalue)) {
+                $notnulls[$sampleid] = $sampleid;
+                if ($calculatedvalue > self::MAX_VALUE || $calculatedvalue < self::MIN_VALUE) {
+                    throw new \coding_exception('Calculated values should be higher than ' . self::MIN_VALUE .
+                        ' and lower than ' . self::MAX_VALUE . ' ' . $calculatedvalue . ' received');
+                }
             }
 
             $calculations[$sampleid] = $calculatedvalue;
@@ -160,6 +180,6 @@ abstract class base extends \core_analytics\calculable {
 
         $features = $this->to_features($calculations);
 
-        return array($features, $newcalculations);
+        return array($features, $newcalculations, $notnulls);
     }
 }

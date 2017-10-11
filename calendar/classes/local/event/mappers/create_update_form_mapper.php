@@ -52,7 +52,7 @@ class create_update_form_mapper implements create_update_form_mapper_interface {
      */
     public function from_legacy_event_to_data(\calendar_event $legacyevent) {
         $legacyevent->count_repeats();
-        $data = $legacyevent->properties(true);
+        $data = $legacyevent->properties();
         $data->timedurationuntil = $legacyevent->timestart + $legacyevent->timeduration;
         $data->duration = (empty($legacyevent->timeduration)) ? 0 : 1;
 
@@ -60,6 +60,17 @@ class create_update_form_mapper implements create_update_form_mapper_interface {
             // Set up the correct value for the to display on the form.
             $data->groupid = "{$legacyevent->courseid}-{$legacyevent->groupid}";
             $data->groupcourseid = $legacyevent->courseid;
+        }
+
+        $data->description = [
+            'text' => $data->description,
+            'format' => $data->format
+        ];
+
+        // We don't want to return the context because it's not a
+        // form value and breaks the validation.
+        if (isset($data->context)) {
+            unset($data->context);
         }
 
         return $data;
@@ -90,7 +101,11 @@ class create_update_form_mapper implements create_update_form_mapper_interface {
 
         // Default course id if none is set.
         if (!isset($properties->courseid)) {
-            $properties->courseid = 0;
+            if ($properties->eventtype === 'site') {
+                $properties->courseid = SITEID;
+            } else {
+                $properties->courseid = 0;
+            }
         }
 
         // Decode the form fields back into valid event property.

@@ -61,25 +61,27 @@ class course_dropout extends \core_analytics\local\target\binary {
     public function prediction_actions(\core_analytics\prediction $prediction, $includedetailsaction = false) {
         global $USER;
 
-        $actions = parent::prediction_actions($prediction, $includedetailsaction);
+        $actions = array();
 
         $sampledata = $prediction->get_sample_data();
         $studentid = $sampledata['user']->id;
 
+        $attrs = array('target' => '_blank');
+
         // Send a message.
         $url = new \moodle_url('/message/index.php', array('user' => $USER->id, 'id' => $studentid));
         $pix = new \pix_icon('t/message', get_string('sendmessage', 'message'));
-        $actions['studentmessage'] = new \core_analytics\prediction_action('studentmessage', $prediction, $url, $pix,
-            get_string('sendmessage', 'message'));
+        $actions[] = new \core_analytics\prediction_action('studentmessage', $prediction, $url, $pix,
+            get_string('sendmessage', 'message'), $attrs);
 
         // View outline report.
         $url = new \moodle_url('/report/outline/user.php', array('id' => $studentid, 'course' => $sampledata['course']->id,
             'mode' => 'outline'));
         $pix = new \pix_icon('i/report', get_string('outlinereport'));
-        $actions['viewoutlinereport'] = new \core_analytics\prediction_action('viewoutlinereport', $prediction, $url, $pix,
-            get_string('outlinereport'));
+        $actions[] = new \core_analytics\prediction_action('viewoutlinereport', $prediction, $url, $pix,
+            get_string('outlinereport'), $attrs);
 
-        return $actions;
+        return array_merge($actions, parent::prediction_actions($prediction, $includedetailsaction));
     }
 
     /**
@@ -115,7 +117,7 @@ class course_dropout extends \core_analytics\local\target\binary {
     }
 
     /**
-     * is_valid_analysable
+     * Discards courses that are not yet ready to be used for training or prediction.
      *
      * @param \core_analytics\analysable $course
      * @param bool $fortraining
@@ -147,13 +149,22 @@ class course_dropout extends \core_analytics\local\target\binary {
             return get_string('nocourseendtime');
         }
 
+        if ($course->get_end() < $course->get_start()) {
+            return get_string('errorendbeforestart', 'analytics');
+        }
+
+        // A course that lasts longer than 1 year probably have wrong start or end dates.
+        if ($course->get_end() - $course->get_start() > (YEARSECS + (WEEKSECS * 4))) {
+            return get_string('coursetoolong', 'analytics');
+        }
+
         // Ongoing courses data can not be used to train.
         if ($fortraining && !$course->is_finished()) {
             return get_string('coursenotyetfinished');
         }
 
         if ($fortraining) {
-            // Not a valid target for training if there are not enough course accesses.
+            // Not a valid target for training if there are not enough course accesses between the course start and end dates.
 
             $params = array('courseid' => $course->get_id(), 'anonymous' => 0, 'start' => $course->get_start(),
                 'end' => $course->get_end());
@@ -178,14 +189,39 @@ class course_dropout extends \core_analytics\local\target\binary {
     }
 
     /**
-     * All student enrolments are valid.
+     * Discard student enrolments that are invalid.
      *
      * @param int $sampleid
      * @param \core_analytics\analysable $course
      * @param bool $fortraining
-     * @return true|string
+     * @return bool
      */
     public function is_valid_sample($sampleid, \core_analytics\analysable $course, $fortraining = true) {
+
+        $userenrol = $this->retrieve('user_enrolments', $sampleid);
+        if ($userenrol->timeend && $course->get_start() > $userenrol->timeend) {
+            // Discard enrolments which time end is prior to the course start. This should get rid of
+            // old user enrolments that remain on the course.
+            return false;
+        }
+
+        $limit = $course->get_start() - (YEARSECS + (WEEKSECS * 4));
+        if (($userenrol->timestart && $userenrol->timestart < $limit) ||
+                (!$userenrol->timestart && $userenrol->timecreated < $limit)) {
+            // Following what we do in is_valid_sample, we will discard enrolments that last more than 1 academic year
+            // because they have incorrect start and end dates or because they are reused along multiple years
+            // without removing previous academic years students. This may not be very accurate because some courses
+            // can last just some months, but it is better than nothing and they will be flagged as drop out anyway
+            // in most of the cases.
+            return false;
+        }
+
+        if (($userenrol->timestart && $userenrol->timestart > $course->get_end()) ||
+                (!$userenrol->timestart && $userenrol->timecreated > $course->get_end())) {
+            // Discard user enrolments that starts after the analysable official end.
+            return false;
+        }
+
         return true;
     }
 

@@ -3024,23 +3024,6 @@ class core_course_courselib_testcase extends advanced_testcase {
         $this->assertTrue($navoptions->tags);
         $this->assertTrue($navoptions->search);
         $this->assertTrue($navoptions->calendar);
-
-        // Standar using viewing frontpage settings from a course where is enrolled.
-        $course = self::getDataGenerator()->create_course();
-        // Create a viewer user.
-        $viewer = self::getDataGenerator()->create_user();
-        $studentrole = $DB->get_record('role', array('shortname' => 'student'));
-        $this->getDataGenerator()->enrol_user($viewer->id, $course->id, $studentrole->id);
-        $this->setUser($viewer);
-
-        $navoptions = course_get_user_navigation_options($context, $course);
-        $this->assertTrue($navoptions->blogs);
-        $this->assertFalse($navoptions->notes);
-        $this->assertTrue($navoptions->participants);
-        $this->assertTrue($navoptions->badges);
-        $this->assertTrue($navoptions->tags);
-        $this->assertTrue($navoptions->search);
-        $this->assertTrue($navoptions->calendar);
     }
 
     /**
@@ -3920,5 +3903,175 @@ class core_course_courselib_testcase extends advanced_testcase {
         $this->assertTrue(course_module_bulk_update_calendar_events('assign'));
         // Update the assign instances for this course.
         $this->assertTrue(course_module_bulk_update_calendar_events('assign', $course->id));
+    }
+
+    /**
+     * Test that a student can view participants in a course they are enrolled in.
+     */
+    public function test_course_can_view_participants_as_student() {
+        $this->resetAfterTest();
+
+        $course = $this->getDataGenerator()->create_course();
+        $coursecontext = context_course::instance($course->id);
+
+        $user = $this->getDataGenerator()->create_user();
+        $this->getDataGenerator()->enrol_user($user->id, $course->id);
+
+        $this->setUser($user);
+
+        $this->assertTrue(course_can_view_participants($coursecontext));
+    }
+
+    /**
+     * Test that a student in a course can not view participants on the site.
+     */
+    public function test_course_can_view_participants_as_student_on_site() {
+        $this->resetAfterTest();
+
+        $course = $this->getDataGenerator()->create_course();
+
+        $user = $this->getDataGenerator()->create_user();
+        $this->getDataGenerator()->enrol_user($user->id, $course->id);
+
+        $this->setUser($user);
+
+        $this->assertFalse(course_can_view_participants(context_system::instance()));
+    }
+
+    /**
+     * Test that an admin can view participants on the site.
+     */
+    public function test_course_can_view_participants_as_admin_on_site() {
+        $this->resetAfterTest();
+
+        $this->setAdminUser();
+
+        $this->assertTrue(course_can_view_participants(context_system::instance()));
+    }
+
+    /**
+     * Test teachers can view participants in a course they are enrolled in.
+     */
+    public function test_course_can_view_participants_as_teacher() {
+        global $DB;
+
+        $this->resetAfterTest();
+
+        $course = $this->getDataGenerator()->create_course();
+        $coursecontext = context_course::instance($course->id);
+
+        $user = $this->getDataGenerator()->create_user();
+        $roleid = $DB->get_field('role', 'id', array('shortname' => 'editingteacher'));
+        $this->getDataGenerator()->enrol_user($user->id, $course->id, $roleid);
+
+        $this->setUser($user);
+
+        $this->assertTrue(course_can_view_participants($coursecontext));
+    }
+
+    /**
+     * Check the teacher can still view the participants page without the 'viewparticipants' cap.
+     */
+    public function test_course_can_view_participants_as_teacher_without_view_participants_cap() {
+        global $DB;
+
+        $this->resetAfterTest();
+
+        $course = $this->getDataGenerator()->create_course();
+        $coursecontext = context_course::instance($course->id);
+
+        $user = $this->getDataGenerator()->create_user();
+        $roleid = $DB->get_field('role', 'id', array('shortname' => 'editingteacher'));
+        $this->getDataGenerator()->enrol_user($user->id, $course->id, $roleid);
+
+        $this->setUser($user);
+
+        // Disable one of the capabilties.
+        assign_capability('moodle/course:viewparticipants', CAP_PROHIBIT, $roleid, $coursecontext);
+
+        // Should still be able to view the page as they have the 'moodle/course:enrolreview' cap.
+        $this->assertTrue(course_can_view_participants($coursecontext));
+    }
+
+    /**
+     * Check the teacher can still view the participants page without the 'moodle/course:enrolreview' cap.
+     */
+    public function test_course_can_view_participants_as_teacher_without_enrol_review_cap() {
+        global $DB;
+
+        $this->resetAfterTest();
+
+        $course = $this->getDataGenerator()->create_course();
+        $coursecontext = context_course::instance($course->id);
+
+        $user = $this->getDataGenerator()->create_user();
+        $roleid = $DB->get_field('role', 'id', array('shortname' => 'editingteacher'));
+        $this->getDataGenerator()->enrol_user($user->id, $course->id, $roleid);
+
+        $this->setUser($user);
+
+        // Disable one of the capabilties.
+        assign_capability('moodle/course:enrolreview', CAP_PROHIBIT, $roleid, $coursecontext);
+
+        // Should still be able to view the page as they have the 'moodle/course:viewparticipants' cap.
+        $this->assertTrue(course_can_view_participants($coursecontext));
+    }
+
+    /**
+     * Check the teacher can not view the participants page without the required caps.
+     */
+    public function test_course_can_view_participants_as_teacher_without_required_caps() {
+        global $DB;
+
+        $this->resetAfterTest();
+
+        $course = $this->getDataGenerator()->create_course();
+        $coursecontext = context_course::instance($course->id);
+
+        $user = $this->getDataGenerator()->create_user();
+        $roleid = $DB->get_field('role', 'id', array('shortname' => 'editingteacher'));
+        $this->getDataGenerator()->enrol_user($user->id, $course->id, $roleid);
+
+        $this->setUser($user);
+
+        // Disable the capabilities.
+        assign_capability('moodle/course:viewparticipants', CAP_PROHIBIT, $roleid, $coursecontext);
+        assign_capability('moodle/course:enrolreview', CAP_PROHIBIT, $roleid, $coursecontext);
+
+        $this->assertFalse(course_can_view_participants($coursecontext));
+    }
+
+    /**
+     * Check that an exception is not thrown if we can view the participants page.
+     */
+    public function test_course_require_view_participants() {
+        $this->resetAfterTest();
+
+        $course = $this->getDataGenerator()->create_course();
+        $coursecontext = context_course::instance($course->id);
+
+        $user = $this->getDataGenerator()->create_user();
+        $this->getDataGenerator()->enrol_user($user->id, $course->id);
+
+        $this->setUser($user);
+
+        course_require_view_participants($coursecontext);
+    }
+
+    /**
+     * Check that an exception is thrown if we can't view the participants page.
+     */
+    public function test_course_require_view_participants_as_student_on_site() {
+        $this->resetAfterTest();
+
+        $course = $this->getDataGenerator()->create_course();
+
+        $user = $this->getDataGenerator()->create_user();
+        $this->getDataGenerator()->enrol_user($user->id, $course->id);
+
+        $this->setUser($user);
+
+        $this->expectException('required_capability_exception');
+        course_require_view_participants(context_system::instance());
     }
 }
