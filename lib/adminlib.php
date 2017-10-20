@@ -1866,7 +1866,7 @@ abstract class admin_setting {
         }
 
         $callbackfunction = $this->updatedcallback;
-        if (!empty($callbackfunction) and function_exists($callbackfunction)) {
+        if (!empty($callbackfunction) and is_callable($callbackfunction)) {
             $callbackfunction($this->get_full_name());
         }
         return true;
@@ -5206,8 +5206,9 @@ class admin_setting_special_coursecontact extends admin_setting_pickroles {
         parent::__construct('coursecontact', get_string('coursecontact', 'admin'),
             get_string('coursecontact_desc', 'admin'),
             array('editingteacher'));
-        $this->set_updatedcallback(create_function('',
-                "cache::make('core', 'coursecontacts')->purge();"));
+        $this->set_updatedcallback(function (){
+            cache::make('core', 'coursecontacts')->purge();
+        });
     }
 }
 
@@ -8746,17 +8747,14 @@ class admin_setting_enablemobileservice extends admin_setting_configcheckbox {
      * @return string XHTML
      */
     public function output_html($data, $query='') {
-        global $CFG, $OUTPUT;
+        global $OUTPUT;
         $html = parent::output_html($data, $query);
 
         if ((string)$data === $this->yes) {
-            require_once($CFG->dirroot . "/lib/filelib.php");
-            $curl = new curl();
-            $httpswwwroot = str_replace('http:', 'https:', $CFG->wwwroot); //force https url
-            $curl->head($httpswwwroot . "/login/index.php");
-            $info = $curl->get_info();
-            if (empty($info['http_code']) or ($info['http_code'] >= 400)) {
-               $html .= $OUTPUT->notification(get_string('nohttpsformobilewarning', 'admin'));
+            $notifications = tool_mobile\api::get_potential_config_issues(); // Safe to call, plugin available if we reach here.
+            foreach ($notifications as $notification) {
+                $message = get_string($notification[0], $notification[1]);
+                $html .= $OUTPUT->notification($message, \core\output\notification::NOTIFY_WARNING);
             }
         }
 
