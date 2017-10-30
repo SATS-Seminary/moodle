@@ -292,6 +292,7 @@ $string['counteditems'] = '{$a->count} {$a->items}';
 $string['country'] = 'Country';
 $string['course'] = 'Course';
 $string['courseadministration'] = 'Course administration';
+$string['coursealreadyfinished'] = 'Course already finished';
 $string['courseapprovedemail'] = 'Your requested course, {$a->name}, has been approved and you have been made a {$a->teacher}.  To access your new course, go to {$a->url}';
 $string['courseapprovedemail2'] = 'Your requested course, {$a->name}, has been approved.  To access your new course, go to {$a->url}';
 $string['courseapprovedfailed'] = 'Failed to save the course as approved!';
@@ -336,8 +337,8 @@ $string['coursehelpnewsitemsnumber'] = 'Number of recent announcements appearing
 $string['coursehelpnumberweeks'] = 'Number of sections in the course (applies to certain course formats only).';
 $string['coursehelpshowgrades'] = 'Enable the display of the gradebook. It does not prevent grades from being displayed within the individual activities.';
 $string['coursehidden'] = 'This course is currently unavailable to students';
-$string['coursenotyetstarted'] = 'The course is not yet started';
-$string['coursenotyetfinished'] = 'The course is not yet finished';
+$string['coursenotyetstarted'] = 'The course has not yet started';
+$string['coursenotyetfinished'] = 'The course has not yet finished';
 $string['courseoverviewfiles'] = 'Course summary files';
 $string['courseoverviewfilesext'] = 'Course summary files extensions';
 $string['courseoverviewfileslimit'] = 'Course summary files limit';
@@ -661,7 +662,7 @@ If you continue to have difficulty, contact the site administrator.';
 $string['emailpasswordchangeinfo'] = 'Hi {$a->firstname},
 
 Someone (probably you) has requested a new password for your
-account on \'{$a->sitename}\'.
+account \'{$a->username}\' on \'{$a->sitename}\'.
 
 To change your password, please go to the following web address:
 
@@ -714,7 +715,7 @@ $string['emptydragdropregion'] = 'empty region';
 $string['enable'] = 'Enable';
 $string['encryptedcode'] = 'Encrypted code';
 $string['enddate'] = 'Course end date';
-$string['enddate_help'] = 'The course end date is only used for reports. Users can still enter the course after the end date.';
+$string['enddate_help'] = 'The course end date is used for determining whether a course should be included in a user\'s list of courses. When the end date is past, the course is no longer listed in the navigation and is listed as past in the course overview. The course end date may also be used by custom reports. Users can still enter the course after the end date; in other words the date does not restrict access.';
 $string['english'] = 'English';
 $string['enrolmentmethods'] = 'Enrolment methods';
 $string['entercourse'] = 'Click to enter this course';
@@ -992,7 +993,9 @@ $string['choosereportfilter'] = 'Choose a filter for the report';
 $string['choosetheme'] = 'Choose theme';
 $string['chooseuser'] = 'Choose a user';
 $string['courseduration'] = 'Course duration';
-$string['courseduration_desc'] = 'The course duration is used to calculate the default course end date. The course end date is only used for reports. Users can still enter the course after the end date.';
+$string['courseduration_desc'] = 'The course duration is used to calculate the default course end date. The course end date is used for determining whether a course should be included in a user\'s list of courses.  It may also be used by custom reports. Users can still enter the course after the end date.';
+$string['courseenddateenabled'] = 'Course end date enabled by default';
+$string['courseenddateenabled_desc'] = 'This setting determines if the course end date will be enabled by default for new courses and set to the date calculated from the course duration.';
 $string['eventcontentviewed'] = 'Content viewed';
 $string['filter'] = 'Filter';
 $string['filteroption'] = '{$a->criteria}: {$a->value}';
@@ -1038,6 +1041,8 @@ $string['indicator:accessesbeforestart'] = 'Course accessed before start date';
 $string['indicator:accessesbeforestart_help'] = 'This indicator reflects if the student accessed the course before the course start date.';
 $string['indicator:anywrite'] = 'Any write action';
 $string['indicator:anywrite_help'] = 'This indicator represents any write (submit) action taken by the student.';
+$string['indicator:anywriteincourse'] = 'Any write action in the course';
+$string['indicator:anywriteincourse_help'] = 'This indicator represents any write (submit) action taken by the student in any course activity.';
 $string['indicator:completeduserprofile'] = 'User profile is completed';
 $string['indicator:completeduserprofile_help'] = 'This indicator represents that the student has completed their user profile.';
 $string['indicator:completionenabled'] = 'Completion tracking enabled';
@@ -1548,7 +1553,6 @@ $string['publicprofile'] = 'Public profile';
 $string['publicsitefileswarning'] = 'Note: files placed here can be accessed by anyone';
 $string['publicsitefileswarning2'] = 'Note: Files placed here can be accessed by anyone who knows (or can guess) the URL. For security reasons, it is recommended that any backup files are deleted immediately after restoring them.';
 $string['publicsitefileswarning3'] = 'Note: Files placed here can be accessed by anyone who knows (or can guess) the URL. <br />For security reasons, backup files should be saved in the secure backupdata folder only.';
-$string['publish'] = 'Publish';
 $string['question'] = 'Question';
 $string['questionsinthequestionbank'] = 'Questions in the question bank';
 $string['quotausage'] = 'You have currently used {$a->used} of your {$a->total} limit.';
@@ -1564,8 +1568,8 @@ $string['refresh'] = 'Refresh';
 $string['refreshingevents'] = 'Refreshing events';
 $string['registration'] = 'Moodle registration';
 $string['registrationcontact'] = 'Contact from the public';
-$string['registrationcontactno'] = 'No, I do not want a contact form in the site listing';
-$string['registrationcontactyes'] = 'Yes, provide a form for prospective Moodlers to contact me';
+$string['registrationcontactno'] = 'No, I do not want to be contacted by other people';
+$string['registrationcontactyes'] = 'Yes, provide a form for other Moodlers to contact me';
 $string['registrationemail'] = 'Email notifications';
 $string['registrationinfo'] = '<p>This page allows you to register your Moodle site with moodle.org.  Registration is free.
 The main benefit of registering is that you will be added to a low-volume mailing list
@@ -1576,9 +1580,9 @@ for important notifications such as security alerts and new releases of Moodle.<
 <p>If you choose, you can allow your site name, country and URL to be added to the public list of Moodle Sites.</p>
 <p>All new registrations are verified manually before they are added to the list, but once you are added you can update your registration (and your entry on the public list) at any time by resubmitting this form.</p>';
 $string['registrationinfotitle'] = 'Registration information';
-$string['registrationno'] = 'No, I do not want to receive email';
+$string['registrationno'] = 'No, I do not want to receive any email from Moodle HQ';
 $string['registrationsend'] = 'Send registration information to moodle.org';
-$string['registrationyes'] = 'Yes, please notify me about important issues';
+$string['registrationyes'] = 'Yes, notify me about important news (e.g. security issues or releases) ';
 $string['reject'] = 'Reject';
 $string['rejectdots'] = 'Reject...';
 $string['reload'] = 'Reload';
@@ -2158,3 +2162,6 @@ $string['modchooserdisable'] = 'Activity chooser off';
 // Deprecated since Moodle 3.3.
 $string['deletecomment'] = 'Delete this comment';
 $string['sectionusedefaultname'] = 'Use default section name';
+
+// Deprecated since Moodle 3.4.
+$string['publish'] = 'Publish';

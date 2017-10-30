@@ -443,7 +443,6 @@ class calendar_event {
         );
 
         if (empty($this->properties->id) || $this->properties->id < 1) {
-
             if ($checkcapability) {
                 if (!calendar_add_event_allowed($this->properties)) {
                     print_error('nopermissiontoupdatecalendar');
@@ -596,14 +595,40 @@ class calendar_event {
                                    description = ?,
                                    timestart = timestart + ?,
                                    timeduration = ?,
-                                   timemodified = ?
+                                   timemodified = ?,
+                                   groupid = ?,
+                                   courseid = ?
                              WHERE repeatid = ?";
-                    $params = array($this->properties->name, $this->properties->description, $timestartoffset,
-                        $this->properties->timeduration, time(), $event->repeatid);
+                    // Note: Group and course id may not be set. If not, keep their current values.
+                    $params = [
+                        $this->properties->name,
+                        $this->properties->description,
+                        $timestartoffset,
+                        $this->properties->timeduration,
+                        time(),
+                        isset($this->properties->groupid) ? $this->properties->groupid : $event->groupid,
+                        isset($this->properties->courseid) ? $this->properties->courseid : $event->courseid,
+                        $event->repeatid
+                    ];
                 } else {
-                    $sql = "UPDATE {event} SET name = ?, description = ?, timeduration = ?, timemodified = ? WHERE repeatid = ?";
-                    $params = array($this->properties->name, $this->properties->description,
-                        $this->properties->timeduration, time(), $event->repeatid);
+                    $sql = "UPDATE {event}
+                               SET name = ?,
+                                   description = ?,
+                                   timeduration = ?,
+                                   timemodified = ?,
+                                   groupid = ?,
+                                   courseid = ?
+                            WHERE repeatid = ?";
+                    // Note: Group and course id may not be set. If not, keep their current values.
+                    $params = [
+                        $this->properties->name,
+                        $this->properties->description,
+                        $this->properties->timeduration,
+                        time(),
+                        isset($this->properties->groupid) ? $this->properties->groupid : $event->groupid,
+                        isset($this->properties->courseid) ? $this->properties->courseid : $event->courseid,
+                        $event->repeatid
+                    ];
                 }
                 $DB->execute($sql, $params);
 
@@ -2112,31 +2137,41 @@ function calendar_delete_event_allowed($event) {
  * Returns the default courses to display on the calendar when there isn't a specific
  * course to display.
  *
+ * @param int $courseid (optional) If passed, an additional course can be returned for admins (the current course).
+ * @param string $fields Comma separated list of course fields to return.
+ * @param bool $canmanage If true, this will return the list of courses the current user can create events in, rather
+ *                        than the list of courses they see events from (an admin can always add events in a course
+ *                        calendar, even if they are not enrolled in the course).
  * @return array $courses Array of courses to display
  */
-function calendar_get_default_courses() {
+function calendar_get_default_courses($courseid = null, $fields = '*', $canmanage=false) {
     global $CFG, $DB;
 
     if (!isloggedin()) {
         return array();
     }
 
-    if (!empty($CFG->calendar_adminseesall) && has_capability('moodle/calendar:manageentries', \context_system::instance())) {
-        $select = ', ' . \context_helper::get_preload_record_columns_sql('ctx');
-        $join = "LEFT JOIN {context} ctx ON (ctx.instanceid = c.id AND ctx.contextlevel = :contextlevel)";
-        $sql = "SELECT c.* $select
-                      FROM {course} c
-                      $join
-                     WHERE EXISTS (SELECT 1 FROM {event} e WHERE e.courseid = c.id)
-                  ";
-        $courses = $DB->get_records_sql($sql, array('contextlevel' => CONTEXT_COURSE), 0, 20);
-        foreach ($courses as $course) {
-            \context_helper::preload_from_record($course);
-        }
-        return $courses;
+    if (has_capability('moodle/calendar:manageentries', context_system::instance()) &&
+            (!empty($CFG->calendar_adminseesall) || $canmanage)) {
+
+        // Add a c. prefix to every field as expected by get_courses function.
+        $fieldlist = explode(',', $fields);
+
+        $prefixedfields = array_map(function($value) {
+            return 'c.' . trim($value);
+        }, $fieldlist);
+        $courses = get_courses('all', 'c.shortname', implode(',', $prefixedfields));
+    } else {
+        $courses = enrol_get_my_courses($fields);
     }
 
-    $courses = enrol_get_my_courses();
+    if ($courseid && $courseid != SITEID) {
+        if (empty($courses[$courseid]) && has_capability('moodle/calendar:manageentries', context_system::instance())) {
+            // Allow a site admin to see calendars from courses he is not enrolled in.
+            // This will come from $COURSE.
+            $courses[$courseid] = get_course($courseid);
+        }
+    }
 
     return $courses;
 }
@@ -2379,6 +2414,8 @@ function calendar_get_all_allowed_types() {
 
     $types = [];
 
+    $allowed = new stdClass();
+
     calendar_get_allowed_types($allowed);
 
     if ($allowed->user) {
@@ -2396,7 +2433,8 @@ function calendar_get_all_allowed_types() {
     // This function warms the context cache for the course so the calls
     // to load the course context in calendar_get_allowed_types don't result
     // in additional DB queries.
-    $courses = enrol_get_users_courses($USER->id, true);
+    $courses = calendar_get_default_courses(null, '*', true);
+
     // We want to pre-fetch all of the groups for each course in a single
     // query to avoid calendar_get_allowed_types from hitting the DB for
     // each separate course.
@@ -2437,7 +2475,7 @@ function calendar_user_can_add_event($course) {
 
     calendar_get_allowed_types($allowed, $course);
 
-    return (bool)($allowed->user || $allowed->groups || $allowed->courses || $allowed->category || $allowed->site);
+    return (bool)($allowed->user || $allowed->groups || $allowed->courses || $allowed->categories || $allowed->site);
 }
 
 /**
@@ -3063,36 +3101,51 @@ function calendar_get_view(\calendar_information $calendar, $view, $includenavig
     $type = \core_calendar\type_factory::get_calendar_instance();
 
     // Calculate the bounds of the month.
-    $date = $type->timestamp_to_date_array($calendar->time);
+    $calendardate = $type->timestamp_to_date_array($calendar->time);
+
+    $date = new \DateTime('now', core_date::get_user_timezone_object(99));
+    $eventlimit = 200;
 
     if ($view === 'day') {
-        $tstart = $type->convert_to_timestamp($date['year'], $date['mon'], $date['mday']);
-        $tend = $tstart + DAYSECS - 1;
+        $tstart = $type->convert_to_timestamp($calendardate['year'], $calendardate['mon'], $calendardate['mday']);
+        $date->setTimestamp($tstart);
+        $date->modify('+1 day');
     } else if ($view === 'upcoming' || $view === 'upcoming_mini') {
+        // Number of days in the future that will be used to fetch events.
         if (isset($CFG->calendar_lookahead)) {
             $defaultlookahead = intval($CFG->calendar_lookahead);
         } else {
             $defaultlookahead = CALENDAR_DEFAULT_UPCOMING_LOOKAHEAD;
         }
         $lookahead = get_user_preferences('calendar_lookahead', $defaultlookahead);
+
+        // Maximum number of events to be displayed on upcoming view.
         $defaultmaxevents = CALENDAR_DEFAULT_UPCOMING_MAXEVENTS;
         if (isset($CFG->calendar_maxevents)) {
             $defaultmaxevents = intval($CFG->calendar_maxevents);
         }
-        $maxevents = get_user_preferences('calendar_maxevents', $defaultmaxevents);
-        $tstart = $type->convert_to_timestamp($date['year'], $date['mon'], $date['mday'], $date['hours']);
-        $tend = usergetmidnight($tstart + DAYSECS * $lookahead + 3 * HOURSECS) - 1;
+        $eventlimit = get_user_preferences('calendar_maxevents', $defaultmaxevents);
+
+        $tstart = $type->convert_to_timestamp($calendardate['year'], $calendardate['mon'], $calendardate['mday'],
+                $calendardate['hours']);
+        $date->setTimestamp($tstart);
+        $date->modify('+' . $lookahead . ' days');
     } else {
-        $tstart = $type->convert_to_timestamp($date['year'], $date['mon'], 1);
-        $monthdays = $type->get_num_days_in_month($date['year'], $date['mon']);
-        $tend = $tstart + ($monthdays * DAYSECS) - 1;
-        $selectortitle = get_string('detailedmonthviewfor', 'calendar');
+        $tstart = $type->convert_to_timestamp($calendardate['year'], $calendardate['mon'], 1);
+        $monthdays = $type->get_num_days_in_month($calendardate['year'], $calendardate['mon']);
+        $date->setTimestamp($tstart);
+        $date->modify('+' . $monthdays . ' days');
+
         if ($view === 'mini' || $view === 'minithree') {
             $template = 'core_calendar/calendar_mini';
         } else {
             $template = 'core_calendar/calendar_month';
         }
     }
+
+    // We need to extract 1 second to ensure that we don't get into the next day.
+    $date->modify('-1 second');
+    $tend = $date->getTimestamp();
 
     list($userparam, $groupparam, $courseparam, $categoryparam) = array_map(function($param) {
         // If parameter is true, return null.
@@ -3114,14 +3167,6 @@ function calendar_get_view(\calendar_information $calendar, $view, $includenavig
         return $param;
     }, [$calendar->users, $calendar->groups, $calendar->courses, $calendar->categories]);
 
-    // We need to make sure user calendar preferences are respected.
-    // If max upcoming events is not set then use default value of 40 events.
-    if (isset($maxevents)) {
-        $limit = $maxevents;
-    } else {
-        $limit = 40;
-    }
-
     $events = \core_calendar\local\api::get_events(
         $tstart,
         $tend,
@@ -3129,7 +3174,7 @@ function calendar_get_view(\calendar_information $calendar, $view, $includenavig
         null,
         null,
         null,
-        $limit,
+        $eventlimit,
         null,
         $userparam,
         $groupparam,
@@ -3225,11 +3270,16 @@ function calendar_output_fragment_event_form($args) {
             true,
             $data
         );
-        if ($courseid != SITEID) {
+
+        // Let's check first which event types user can add.
+        calendar_get_allowed_types($allowed, $courseid);
+
+        // If the user is on course context and is allowed to add course events set the event type default to course.
+        if ($courseid != SITEID && !empty($allowed->courses)) {
             $data['eventtype'] = 'course';
             $data['courseid'] = $courseid;
             $data['groupcourseid'] = $courseid;
-        } else if (!empty($categoryid)) {
+        } else if (!empty($categoryid) && !empty($allowed->category)) {
             $data['eventtype'] = 'category';
             $data['categoryid'] = $categoryid;
         }

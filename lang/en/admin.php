@@ -142,7 +142,7 @@ $string['configallowblockstodock'] = 'If enabled and supported by the selected t
 $string['configallowcategorythemes'] = 'If you enable this, then themes can be set at the category level. This will affect all child categories and courses unless they have specifically set their own theme. WARNING: Enabling category themes may affect performance.';
 $string['configallowcoursethemes'] = 'If you enable this, then courses will be allowed to set their own themes.  Course themes override all other theme choices (site, user, or session themes)';
 $string['configallowedemaildomains'] = 'List email domains that are allowed to be disclosed in the "From" section of outgoing email. The default of "Empty" will use the No-reply address for all outgoing email. The use of wildcards is allowed e.g. *.example.com will allow emails sent from any subdomain of example.com, but not example.com itself. This will require separate entry.';
-$string['configallowemailaddresses'] = 'If you want to restrict all new email addresses to particular domains, then list them here separated by spaces.  All other domains will be rejected.  To allow subdomains add the domain with a preceding \'.\'. eg <strong>ourcollege.edu.au .gov.au</strong>';
+$string['configallowemailaddresses'] = 'To restrict new email addresses to particular domains, list them here separated by spaces. All other domains will be rejected. To allow subdomains, add the domain with a preceding \'.\'. To allow a root domain together with its subdomains, add the domain twice - once with a preceding \'.\' and once without e.g. .ourcollege.edu.au ourcollege.edu.au.';
 $string['configallowguestmymoodle'] = 'If enabled guests can access Dashboard, otherwise guests are redirected to the site front page.';
 $string['configallowobjectembed'] = 'As a default security measure, normal users are not allowed to embed multimedia (like Flash) within texts using explicit EMBED and OBJECT tags in their HTML (although it can still be done safely using the mediaplugins filter).  If you wish to allow these tags then enable this option.';
 $string['configallowoverride'] = 'You can allow people with the roles on the left side to override some of the column roles';
@@ -258,7 +258,6 @@ $string['configlanglist'] = 'Leave this blank to allow users to choose from any 
 $string['configlangmenu'] = 'Choose whether or not you want to display the general-purpose language menu on the home page, login page etc.  This does not affect the user\'s ability to set the preferred language in their own profile.';
 $string['configlatinexcelexport'] = 'Choose the encoding for Excel exports.';
 $string['configlocale'] = 'Choose a sitewide locale - this will override the format and language of dates for all language packs (though names of days in calendar are not affected). You need to have this locale data installed on your operating system (eg for linux en_US.UTF-8 or es_ES.UTF-8). In most cases this field should be left blank.';
-$string['configloginhttps'] = 'Turning this on will make Moodle use a secure https connection just for the login page (providing a secure login), and then afterwards revert back to the normal http URL for general speed.  CAUTION: this setting REQUIRES https to be specifically enabled on the web server - if it is not then YOU COULD LOCK YOURSELF OUT OF YOUR SITE.';
 $string['configloglifetime'] = 'This specifies the length of time you want to keep logs about user activity.  Logs that are older than this age are automatically deleted.  It is best to keep logs as long as possible, in case you need them, but if you have a very busy server and are experiencing performance problems, then you may want to lower the log lifetime. Values lower than 30 are not recommended because statistics may not work properly.';
 $string['configlookahead'] = 'Days to look ahead';
 $string['configmailnewline'] = 'Newline characters used in mail messages. CRLF is required according to RFC 822bis, some mail servers do automatic conversion from LF to CRLF, other mail servers do incorrect conversion from CRLF to CRCRLF, yet others reject mails with bare LF (qmail for example). Try changing this setting if you are having problems with undelivered emails or double newlines.';
@@ -582,7 +581,7 @@ $string['gravatardefaulturl_help'] = 'Gravatar needs a default image to display 
 $string['gradeexport'] = 'Primary grade export methods';
 $string['guestroleid'] = 'Role for guest';
 $string['guestroleid_help'] = 'This role is automatically assigned to the guest user. It is also temporarily assigned to not enrolled users that enter the course via guest enrolment plugin.';
-$string['helpadminseesall'] = 'Do admins see all calendar events or just those that apply to themselves?';
+$string['helpadminseesall'] = 'In the site calendar, do admins see and filter events from all course calendars or just those from courses they are enrolled in? Regardless of the chosen option, admins will always be able to manage events for each course calendar by navigating to the course first, and then accessing the course calendar directly.';
 $string['helpcalendarcustomexport'] = 'Enable custom date range export option in calendar exports. Calendar exports must be enabled before this is effective.';
 $string['helpexportlookahead'] = 'How many days in the future does the calendar look for events during export for the custom export option?';
 $string['helpexportlookback'] = 'How many days in the past does the calendar look for events during export for the custom export option?';
@@ -680,7 +679,6 @@ $string['lockoutwindow_desc'] = 'Observation time for lockout threshold, if ther
 $string['log'] = 'Logs';
 $string['logguests'] = 'Log guest access';
 $string['logguests_help'] = 'This setting enables logging of actions by guest account and not logged in users. High profile sites may want to disable this logging for performance reasons. It is recommended to keep this setting enabled on production sites.';
-$string['loginhttps'] = 'Use HTTPS for logins';
 $string['loginpageautofocus'] = 'Autofocus login page form';
 $string['loginpageautofocus_help'] = 'Enabling this option improves usability of the login page, but automatically focusing fields may be considered an accessibility issue.';
 $string['loglifetime'] = 'Keep logs for';
@@ -815,6 +813,7 @@ $string['order2'] = 'Second';
 $string['order3'] = 'Third';
 $string['order4'] = 'Fourth';
 $string['outgoingmailconfig'] = 'Outgoing mail configuration';
+$string['overridetossl'] = 'HTTPS for logins has now been deprecated. This instance is now forced to SSL. To remedy this warning change your wwwroot in config.php to https://';
 $string['passwordchangelogout'] = 'Log out after password change';
 $string['passwordchangelogout_desc'] = 'If enabled, when a password is changed, all browser sessions are terminated, apart from the one in which the new password is specified. (This setting does not affect password changes via bulk user upload.)';
 $string['passwordchangetokendeletion'] = 'Remove web service access tokens after password change';
@@ -844,6 +843,7 @@ $string['pgclusterdescription'] = 'PostgreSQL version/cluster parameter for comm
 $string['phpfloatproblem'] = 'Detected unexpected problem in handling of PHP float numbers - {$a}';
 $string['pleaserefreshregistration'] = 'Your site is registered. Registration last updated {$a}.<br />The \'Site registration\' scheduled task keeps your registration up to date. You can also manually update your registration at any time.';
 $string['pleaserefreshregistrationunknown'] = 'Your site has been registered but the registration date is unknown. Please update your registration using the \'Update registration\' button or ensure that the \'Site registration\' scheduled task is enabled so your registration is automatically updated.';
+$string['pleaserefreshregistrationnewdata'] = 'Registration information has been changed. Please confirm it using the \'Update registration\' button.';
 $string['plugin'] = 'Plugin';
 $string['plugins'] = 'Plugins';
 $string['pluginscheck'] = 'Plugin dependencies check';
@@ -939,6 +939,15 @@ $string['quizattemptsupgradedmessage'] = 'In Moodle 2.1 there was a major upgrad
 $string['recaptchaprivatekey'] = 'ReCAPTCHA secret key';
 $string['recaptchapublickey'] = 'ReCAPTCHA site key';
 $string['register'] = 'Register your site';
+$string['registermoodlenet'] = 'We\'d love to stay in touch for important things for your Moodle site!
+
+By registering,
+
+* You are contributing to our collective knowledge about the users of Moodle which helps us improve Moodle and all our community services
+* You’ll be one of the first to find out about important notifications such as security alerts and new Moodle releases.
+* You can access and activate mobile push notifications from your Moodle site through our free [Moodle Mobile app](https://download.moodle.org/mobile/)
+* Optionally, your site can be included as a proud member and supporter of the Moodle community on the [list of registered sites](https://moodle.net/stats).
+';
 $string['registermoodleorg'] = 'When you register your site';
 $string['registermoodleorgli1'] = 'You are added to a low-volume mailing list for important notifications such as security alerts and new releases of Moodle.';
 $string['registermoodleorgli2'] = 'Statistics about your site will be added to the {$a} of the worldwide Moodle community.';
@@ -1166,6 +1175,7 @@ $string['unsupporteddbstorageengine'] = 'The database storage engine being used 
 $string['unsupporteddbtablerowformat'] = 'Your database has tables using Antelope as the file format. You are recommended to convert the tables to the Barracuda file format. See the documentation <a href="https://docs.moodle.org/en/cli">Administration via command line</a> for details of a tool for converting InnoDB tables to Barracuda.';
 $string['unsupportedphpversion7'] = 'PHP version 7 is not supported.';
 $string['unsupportedphpversion71'] = 'PHP version 7.1 is not supported.';
+$string['unsupportedphpversion72'] = 'PHP version 7.2 is not supported.';
 $string['unsuspenduser'] = 'Activate user account';
 $string['updateaccounts'] = 'Update existing accounts';
 $string['updatecomponent'] = 'Update component';
@@ -1275,3 +1285,5 @@ $string['unoconvwarning'] = 'The version of unoconv you have installed is not su
 // Deprecated since Moodle 3.4
 $string['moodleorghubname'] = 'Moodle.net';
 $string['hubs'] = 'Hubs';
+$string['configloginhttps'] = 'Turning this on will make Moodle use a secure https connection just for the login page (providing a secure login), and then afterwards revert back to the normal http URL for general speed.  CAUTION: this setting REQUIRES https to be specifically enabled on the web server - if it is not then YOU COULD LOCK YOURSELF OUT OF YOUR SITE.';
+$string['loginhttps'] = 'Use HTTPS for logins';
