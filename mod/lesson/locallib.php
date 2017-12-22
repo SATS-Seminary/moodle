@@ -1031,6 +1031,7 @@ function lesson_get_user_detailed_report_data(lesson $lesson, $userid, $attempt)
         $lesson->update_effective_access($userid);
     }
 
+    $pageid = 0;
     $lessonpages = $lesson->load_all_pages();
     foreach ($lessonpages as $lessonpage) {
         if ($lessonpage->prevpageid == 0) {
@@ -3001,7 +3002,7 @@ class lesson extends lesson_base {
                         $this->add_message(get_string('numberofpagesviewednotice', 'lesson', $a));
                     }
 
-                    if (!$reviewmode && !$this->properties->retake) {
+                    if (!$reviewmode && $this->properties->ongoing) {
                         $this->add_message(get_string("numberofcorrectanswers", "lesson", $gradeinfo->earned), 'notify');
                         if ($this->properties->grade != GRADE_TYPE_NONE) {
                             $a = new stdClass;
