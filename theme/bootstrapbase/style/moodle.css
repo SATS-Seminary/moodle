@@ -4674,9 +4674,6 @@ dd:after {
 .nav-tabs > .active > a[href]:focus {
   cursor: pointer;
 }
-.inplaceeditable {
-  display: block;
-}
 .inplaceeditable.inplaceeditingon {
   position: relative;
 }
@@ -4711,6 +4708,9 @@ dd:after {
 }
 .inplaceeditable.inplaceeditable-toggle .quickediticon {
   display: none;
+}
+.inplaceeditable.inplaceeditable-autocomplete {
+  display: block;
 }
 h3.sectionname .inplaceeditable.inplaceeditingon .editinstructions {
   margin-top: -20px;
@@ -5907,6 +5907,9 @@ img.iconsmall {
 }
 .calendarwrapper {
   position: relative;
+}
+.summary-modal-container .description-content > p {
+  margin: 0;
 }
 /* course.less */
 /* COURSE CONTENT */
@@ -17568,11 +17571,18 @@ div#dock {
 .path-mod-lesson .answeroptiongroup .felement label p:last-child {
   margin-bottom: 0;
 }
+.path-mod-lesson .answeroption .fradio label p,
+.path-mod-lesson .answeroption .fcheckbox label p {
+  display: inline;
+}
 /**
  * Style for view.php
  **/
 #page-mod-lesson-view .password-form .submitbutton {
   display: inline;
+}
+#page-mod-lesson-view .branchbuttoncontainer .singlebutton input[type="submit"] {
+  white-space: normal;
 }
 .path-mod-lesson .reviewessay {
   width: 40%;
@@ -17878,6 +17888,15 @@ div#dock {
 .userloggedinas .usermenu .userbutton .avatars .avatar img {
   width: inherit;
   height: inherit;
+}
+#page-mod-quiz-edit ul.slots li.section li.activity .instancemaxmarkcontainer form input {
+  margin: 0;
+  padding: 0.2em;
+  height: 1em;
+}
+#mod_quiz_preflight_form .femptylabel .felement {
+  margin: 0;
+  padding: 0;
 }
 .path-mod-quiz #mod_quiz_navblock .qnbutton {
   text-decoration: none;
