@@ -1902,5 +1902,333 @@ function xmldb_main_upgrade($oldversion) {
         upgrade_main_savepoint(true, 2017121900.00);
     }
 
+    if ($oldversion < 2017122200.01) {
+
+        // Define field indexpriority to be added to search_index_requests. Allow null initially.
+        $table = new xmldb_table('search_index_requests');
+        $field = new xmldb_field('indexpriority', XMLDB_TYPE_INTEGER, '10',
+                null, null, null, null, 'partialtime');
+
+        // Conditionally add field.
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+
+            // Set existing values to 'normal' value (100).
+            $DB->set_field('search_index_requests', 'indexpriority', 100);
+
+            // Now make the field 'NOT NULL'.
+            $field = new xmldb_field('indexpriority', XMLDB_TYPE_INTEGER, '10',
+                    null, XMLDB_NOTNULL, null, null, 'partialtime');
+            $dbman->change_field_notnull($table, $field);
+        }
+
+        // Define index indexprioritytimerequested (not unique) to be added to search_index_requests.
+        $index = new xmldb_index('indexprioritytimerequested', XMLDB_INDEX_NOTUNIQUE,
+                array('indexpriority', 'timerequested'));
+
+        // Conditionally launch add index indexprioritytimerequested.
+        if (!$dbman->index_exists($table, $index)) {
+            $dbman->add_index($table, $index);
+        }
+
+        // Main savepoint reached.
+        upgrade_main_savepoint(true, 2017122200.01);
+    }
+
+    if ($oldversion < 2018020500.00) {
+
+        $topcategory = new stdClass();
+        $topcategory->name = 'top'; // A non-real name for the top category. It will be localised at the display time.
+        $topcategory->info = '';
+        $topcategory->parent = 0;
+        $topcategory->sortorder = 0;
+
+        // Get the total record count - used for the progress bar.
+        $total = $DB->count_records_sql("SELECT COUNT(DISTINCT contextid) FROM {question_categories} WHERE parent = 0");
+
+        // Get the records themselves - a list of contextids.
+        $rs = $DB->get_recordset_sql("SELECT DISTINCT contextid FROM {question_categories} WHERE parent = 0");
+
+        // For each context, create a single top-level category.
+        $i = 0;
+        $pbar = new progress_bar('createtopquestioncategories', 500, true);
+        foreach ($rs as $contextid => $notused) {
+            $topcategory->contextid = $contextid;
+            $topcategory->stamp = make_unique_id_code();
+
+            $topcategoryid = $DB->insert_record('question_categories', $topcategory);
+
+            $DB->set_field_select('question_categories', 'parent', $topcategoryid,
+                    'contextid = ? AND id <> ? AND parent = 0',
+                    array($contextid, $topcategoryid));
+
+            // Update progress.
+            $i++;
+            $pbar->update($i, $total, "Creating top-level question categories - $i/$total.");
+        }
+
+        $rs->close();
+
+        // Main savepoint reached.
+        upgrade_main_savepoint(true, 2018020500.00);
+    }
+
+    if ($oldversion < 2018022800.01) {
+        // Fix old block configurations that use the deprecated (and now removed) object class.
+        upgrade_fix_block_instance_configuration();
+
+        // Main savepoint reached.
+        upgrade_main_savepoint(true, 2018022800.01);
+    }
+
+    if ($oldversion < 2018022800.02) {
+        // Define index taggeditem (unique) to be dropped form tag_instance.
+        $table = new xmldb_table('tag_instance');
+        $index = new xmldb_index('taggeditem', XMLDB_INDEX_UNIQUE, array('component',
+            'itemtype', 'itemid', 'tiuserid', 'tagid'));
+
+        // Conditionally launch drop index taggeditem.
+        if ($dbman->index_exists($table, $index)) {
+            $dbman->drop_index($table, $index);
+        }
+
+        $index = new xmldb_index('taggeditem', XMLDB_INDEX_UNIQUE, array('component',
+            'itemtype', 'itemid', 'contextid', 'tiuserid', 'tagid'));
+
+        // Conditionally launch add index taggeditem.
+        if (!$dbman->index_exists($table, $index)) {
+            $dbman->add_index($table, $index);
+        }
+
+        // Main savepoint reached.
+        upgrade_main_savepoint(true, 2018022800.02);
+    }
+
+    if ($oldversion < 2018022800.03) {
+
+        // Define field multiplecontexts to be added to tag_area.
+        $table = new xmldb_table('tag_area');
+        $field = new xmldb_field('multiplecontexts', XMLDB_TYPE_INTEGER, '1', null,
+            XMLDB_NOTNULL, null, '0', 'showstandard');
+
+        // Conditionally launch add field multiplecontexts.
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Main savepoint reached.
+        upgrade_main_savepoint(true, 2018022800.03);
+    }
+
+    if ($oldversion < 2018032200.01) {
+        // Define table 'messages' to be created.
+        $table = new xmldb_table('messages');
+
+        // Adding fields to table 'messages'.
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('useridfrom', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('conversationid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('subject', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $table->add_field('fullmessage', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $table->add_field('fullmessageformat', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, 0);
+        $table->add_field('fullmessagehtml', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $table->add_field('smallmessage', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+
+        // Adding keys to table 'messages'.
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, array('id'));
+        $table->add_key('useridfrom', XMLDB_KEY_FOREIGN, array('useridfrom'), 'user', array('id'));
+        $table->add_key('conversationid', XMLDB_KEY_FOREIGN, array('conversationid'), 'message_conversations', array('id'));
+
+        // Conditionally launch create table for 'messages'.
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // Define table 'message_conversations' to be created.
+        $table = new xmldb_table('message_conversations');
+
+        // Adding fields to table 'message_conversations'.
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+
+        // Adding keys to table 'message_conversations'.
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, array('id'));
+
+        // Conditionally launch create table for 'message_conversations'.
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // Define table 'message_conversation_members' to be created.
+        $table = new xmldb_table('message_conversation_members');
+
+        // Adding fields to table 'message_conversation_members'.
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('conversationid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+
+        // Adding keys to table 'message_conversation_members'.
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, array('id'));
+        $table->add_key('conversationid', XMLDB_KEY_FOREIGN, array('conversationid'), 'message_conversations', array('id'));
+        $table->add_key('userid', XMLDB_KEY_FOREIGN, array('userid'), 'user', array('id'));
+
+        // Conditionally launch create table for 'message_conversation_members'.
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // Define table 'message_user_actions' to be created.
+        $table = new xmldb_table('message_user_actions');
+
+        // Adding fields to table 'message_user_actions'.
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('messageid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('action', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+
+        // Adding keys to table 'message_user_actions'.
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, array('id'));
+        $table->add_key('userid', XMLDB_KEY_FOREIGN, array('userid'), 'user', array('id'));
+        $table->add_key('messageid', XMLDB_KEY_FOREIGN, array('messageid'), 'messages', array('id'));
+
+        // Conditionally launch create table for 'message_user_actions'.
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // Define table 'notifications' to be created.
+        $table = new xmldb_table('notifications');
+
+        // Adding fields to table 'notifications'.
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('useridfrom', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('useridto', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('subject', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $table->add_field('fullmessage', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $table->add_field('fullmessageformat', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, 0);
+        $table->add_field('fullmessagehtml', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $table->add_field('smallmessage', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $table->add_field('component', XMLDB_TYPE_CHAR, '100', null, null, null, null);
+        $table->add_field('eventtype', XMLDB_TYPE_CHAR, '100', null, null, null, null);
+        $table->add_field('contexturl', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $table->add_field('contexturlname', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $table->add_field('timeread', XMLDB_TYPE_INTEGER, '10', null, false, null, null);
+        $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+
+        // Adding keys to table 'notifications'.
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, array('id'));
+        $table->add_key('useridto', XMLDB_KEY_FOREIGN, array('useridto'), 'user', array('id'));
+
+        // Conditionally launch create table for 'notifications'.
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // Main savepoint reached.
+        upgrade_main_savepoint(true, 2018032200.01);
+    }
+
+    if ($oldversion < 2018032200.04) {
+        // Define table 'message_conversations' to be updated.
+        $table = new xmldb_table('message_conversations');
+        $field = new xmldb_field('convhash', XMLDB_TYPE_CHAR, '40', null, XMLDB_NOTNULL, null, null, 'id');
+
+        // Conditionally launch add field 'convhash'.
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Conditionally launch add index.
+        $index = new xmldb_index('convhash', XMLDB_INDEX_UNIQUE, array('convhash'));
+        if (!$dbman->index_exists($table, $index)) {
+            $dbman->add_index($table, $index);
+        }
+
+        // Main savepoint reached.
+        upgrade_main_savepoint(true, 2018032200.04);
+    }
+
+    if ($oldversion < 2018032200.05) {
+        // Drop table that is no longer needed.
+        $table = new xmldb_table('message_working');
+        if ($dbman->table_exists($table)) {
+            $dbman->drop_table($table);
+        }
+
+        // Main savepoint reached.
+        upgrade_main_savepoint(true, 2018032200.05);
+    }
+
+    if ($oldversion < 2018032200.06) {
+        // Define table 'message_user_actions' to add an index to.
+        $table = new xmldb_table('message_user_actions');
+
+        // Conditionally launch add index.
+        $index = new xmldb_index('userid_messageid_action', XMLDB_INDEX_UNIQUE, array('userid, messageid, action'));
+        if (!$dbman->index_exists($table, $index)) {
+            $dbman->add_index($table, $index);
+        }
+
+        // Main savepoint reached.
+        upgrade_main_savepoint(true, 2018032200.06);
+    }
+
+    if ($oldversion < 2018032200.07) {
+        // Define table 'messages' to add an index to.
+        $table = new xmldb_table('messages');
+
+        // Conditionally launch add index.
+        $index = new xmldb_index('conversationid_timecreated', XMLDB_INDEX_NOTUNIQUE, array('conversationid, timecreated'));
+        if (!$dbman->index_exists($table, $index)) {
+            $dbman->add_index($table, $index);
+        }
+
+        // Main savepoint reached.
+        upgrade_main_savepoint(true, 2018032200.07);
+    }
+
+    if ($oldversion < 2018032700.00) {
+        // Update default search engine to search_simpledb if global search is disabled and there is no solr index defined.
+        if (empty($CFG->enableglobalsearch) && empty(get_config('search_solr', 'indexname'))) {
+            set_config('searchengine', 'simpledb');
+        }
+
+        // Main savepoint reached.
+        upgrade_main_savepoint(true, 2018032700.00);
+    }
+
+    if ($oldversion < 2018040500.01) {
+
+        // Define field indexpriority to be added to search_index_requests. Allow null initially.
+        $table = new xmldb_table('cohort');
+        $field = new xmldb_field('theme', XMLDB_TYPE_CHAR, '50',
+                null, null, null, null, 'timemodified');
+
+        // Conditionally add field.
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Main savepoint reached.
+        upgrade_main_savepoint(true, 2018040500.01);
+    }
+
+    if ($oldversion < 2018050900.01) {
+        // Update default digital age consent map according to the current legislation on each country.
+        $ageofdigitalconsentmap = implode(PHP_EOL, [
+            '*, 16',
+            'AT, 14',
+            'ES, 14',
+            'US, 13'
+        ]);
+        set_config('agedigitalconsentmap', $ageofdigitalconsentmap);
+
+        // Main savepoint reached.
+        upgrade_main_savepoint(true, 2018050900.01);
+    }
+
     return true;
 }
