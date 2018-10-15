@@ -74,6 +74,24 @@ $functions = array(
         'capabilities'  => 'moodle/badges:viewotherbadges',
         'services'      => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
     ),
+    'core_blog_get_entries' => array(
+        'classname'   => 'core_blog\external',
+        'methodname'  => 'get_entries',
+        'description' => 'Returns blog entries.',
+        'type'        => 'read',
+        'services'    => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+        'ajax'          => true,
+        'loginrequired' => false,
+    ),
+    'core_blog_view_entries' => array(
+        'classname'   => 'core_blog\external',
+        'methodname'  => 'view_entries',
+        'description' => 'Trigger the blog_entries_viewed event.',
+        'type'        => 'read',
+        'services'    => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+        'ajax'          => true,
+        'loginrequired' => false,
+    ),
     'core_calendar_get_calendar_monthly_view' => array(
         'classname' => 'core_calendar_external',
         'methodname' => 'get_calendar_monthly_view',
@@ -510,6 +528,14 @@ $functions = array(
         'ajax' => true,
         'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
     ),
+    'core_course_get_enrolled_courses_by_timeline_classification' => array(
+        'classname' => 'core_course_external',
+        'methodname' => 'get_enrolled_courses_by_timeline_classification',
+        'classpath' => 'course/externallib.php',
+        'description' => 'List of enrolled courses for the given timeline classification (past, inprogress, or future).',
+        'type' => 'read',
+        'ajax' => true
+    ),
     'core_enrol_get_course_enrolment_methods' => array(
         'classname' => 'core_enrol_external',
         'methodname' => 'get_course_enrolment_methods',
@@ -764,6 +790,7 @@ $functions = array(
         'classpath' => 'group/externallib.php',
         'description' => 'Returns all groups in specified course.',
         'type' => 'read',
+        'ajax' => true,
         'capabilities' => 'moodle/course:managegroups'
     ),
     'core_group_get_course_user_groups' => array(
@@ -812,11 +839,21 @@ $functions = array(
         'description' => 'Updates existing groupings',
         'type' => 'write',
     ),
+    'core_message_block_user' => array(
+        'classname' => 'core_message_external',
+        'methodname' => 'block_user',
+        'classpath' => 'message/externallib.php',
+        'description' => 'Blocks a user',
+        'type' => 'write',
+        'ajax' => true,
+        'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
     'core_message_block_contacts' => array(
         'classname' => 'core_message_external',
         'methodname' => 'block_contacts',
         'classpath' => 'message/externallib.php',
-        'description' => 'Block contacts',
+        'description' => '** DEPRECATED ** Please do not call this function any more.
+                          Block contacts',
         'type' => 'write',
         'ajax' => true,
         'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
@@ -825,11 +862,47 @@ $functions = array(
         'classname' => 'core_message_external',
         'methodname' => 'create_contacts',
         'classpath' => 'message/externallib.php',
-        'description' => 'Add contacts to the contact list',
+        'description' => '** DEPRECATED ** Please do not call this function any more.
+                          Add contacts to the contact list',
         'type' => 'write',
         'ajax' => true,
         'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
+    'core_message_get_contact_requests' => array(
+        'classname' => 'core_message_external',
+        'methodname' => 'get_contact_requests',
+        'classpath' => 'message/externallib.php',
+        'description' => 'Returns contact requests for a user',
+        'type' => 'read',
         'ajax' => true,
+        'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
+    'core_message_create_contact_request' => array(
+        'classname' => 'core_message_external',
+        'methodname' => 'create_contact_request',
+        'classpath' => 'message/externallib.php',
+        'description' => 'Creates a contact request',
+        'type' => 'write',
+        'ajax' => true,
+        'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
+    'core_message_confirm_contact_request' => array(
+        'classname' => 'core_message_external',
+        'methodname' => 'confirm_contact_request',
+        'classpath' => 'message/externallib.php',
+        'description' => 'Confirms a contact request',
+        'type' => 'write',
+        'ajax' => true,
+        'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
+    'core_message_decline_contact_request' => array(
+        'classname' => 'core_message_external',
+        'methodname' => 'decline_contact_request',
+        'classpath' => 'message/externallib.php',
+        'description' => 'Declines a contact request',
+        'type' => 'write',
+        'ajax' => true,
+        'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
     ),
     'core_message_delete_contacts' => array(
         'classname' => 'core_message_external',
@@ -839,7 +912,6 @@ $functions = array(
         'type' => 'write',
         'ajax' => true,
         'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
-        'ajax' => true,
     ),
     'core_message_delete_conversation' => array(
         'classname' => 'core_message_external',
@@ -1034,11 +1106,21 @@ $functions = array(
         'ajax' => true,
         'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
     ),
+    'core_message_unblock_user' => array(
+        'classname' => 'core_message_external',
+        'methodname' => 'unblock_user',
+        'classpath' => 'message/externallib.php',
+        'description' => 'Unblocks a user',
+        'type' => 'write',
+        'ajax' => true,
+        'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
     'core_message_unblock_contacts' => array(
         'classname' => 'core_message_external',
         'methodname' => 'unblock_contacts',
         'classpath' => 'message/externallib.php',
-        'description' => 'Unblock contacts',
+        'description' => '** DEPRECATED ** Please do not call this function any more.
+                         Unblock contacts',
         'type' => 'write',
         'ajax' => true,
         'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
@@ -1353,6 +1435,7 @@ $functions = array(
         'description' => 'Set user preferences.',
         'type' => 'write',
         'capabilities' => 'moodle/site:config',
+        'ajax' => true
     ),
     'core_user_agree_site_policy' => array(
         'classname' => 'core_user_external',

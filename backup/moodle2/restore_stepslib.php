@@ -2725,7 +2725,8 @@ class restore_calendarevents_structure_step extends restore_structure_step {
                 'uuid'           => $data->uuid,
                 'sequence'       => $data->sequence,
                 'timemodified'   => $data->timemodified,
-                'priority'       => isset($data->priority) ? $data->priority : null);
+                'priority'       => isset($data->priority) ? $data->priority : null,
+                'location'       => isset($data->location) ? $data->location : null);
         if ($this->name == 'activity_calendar') {
             $params['instance'] = $this->task->get_activityid();
         } else {
@@ -4433,6 +4434,12 @@ class restore_create_categories_and_questions extends restore_structure_step {
                 $data->stamp = make_unique_id_code();
             }
 
+            // The idnumber if it exists also needs to be unique within a context or reset it to null.
+            if (!empty($data->idnumber) && $DB->record_exists('question_categories',
+                    ['idnumber' => $data->idnumber, 'contextid' => $data->contextid])) {
+                unset($data->idnumber);
+            }
+
             // Let's create the question_category and save mapping.
             $newitemid = $DB->insert_record('question_categories', $data);
             $this->set_mapping('question_category', $oldid, $newitemid);
@@ -4478,6 +4485,13 @@ class restore_create_categories_and_questions extends restore_structure_step {
 
         // With newitemid = 0, let's create the question
         if (!$questionmapping->newitemid) {
+
+            // The idnumber if it exists also needs to be unique within a category or reset it to null.
+            if (!empty($data->idnumber) && $DB->record_exists('question',
+                    ['idnumber' => $data->idnumber, 'category' => $data->category])) {
+                unset($data->idnumber);
+            }
+
             $newitemid = $DB->insert_record('question', $data);
             $this->set_mapping('question', $oldid, $newitemid);
             // Also annotate them as question_created, we need

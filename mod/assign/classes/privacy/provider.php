@@ -141,8 +141,6 @@ class provider implements metadataprovider, pluginprovider, preference_provider 
                   JOIN {context} ctx ON cm.id = ctx.instanceid AND ctx.contextlevel = :contextlevel
                   JOIN {assign_grades} ag ON a.id = ag.assignment AND (ag.userid = :userid OR ag.grader = :graderid)";
 
-                  global $DB;
-
         $contextlist = new contextlist();
         $contextlist->add_from_sql($sql, $params);
 
@@ -240,7 +238,7 @@ class provider implements metadataprovider, pluginprovider, preference_provider 
     /**
      * Delete all use data which matches the specified context.
      *
-     * @param context $context The module context.
+     * @param \context $context The module context.
      */
     public static function delete_data_for_all_users_in_context(\context $context) {
         global $DB;
@@ -258,6 +256,13 @@ class provider implements metadataprovider, pluginprovider, preference_provider 
                 manager::plugintype_class_callback('assignfeedback', self::ASSIGNFEEDBACK_INTERFACE,
                     'delete_feedback_for_context', [$requestdata]);
                 $DB->delete_records('assign_grades', ['assignment' => $assign->get_instance()->id]);
+
+                // Delete advanced grading information.
+                $gradingmanager = get_grading_manager($context, 'mod_assign', 'submissions');
+                $controller = $gradingmanager->get_active_controller();
+                if (isset($controller)) {
+                    \core_grading\privacy\provider::delete_instance_data($context);
+                }
 
                 // Time to roll my own method for deleting overrides.
                 static::delete_user_overrides($assign);
@@ -294,10 +299,16 @@ class provider implements metadataprovider, pluginprovider, preference_provider 
             }
 
             $grades = $DB->get_records('assign_grades', ['assignment' => $assignid, 'userid' => $user->id]);
+            $gradingmanager = get_grading_manager($context, 'mod_assign', 'submissions');
+            $controller = $gradingmanager->get_active_controller();
             foreach ($grades as $grade) {
                 $requestdata = new assign_plugin_request_data($context, $assign, $grade, [], $user);
                 manager::plugintype_class_callback('assignfeedback', self::ASSIGNFEEDBACK_INTERFACE,
                         'delete_feedback_for_grade', [$requestdata]);
+                // Delete advanced grading information.
+                if (isset($controller)) {
+                    \core_grading\privacy\provider::delete_instance_data($context, $grade->id);
+                }
             }
 
             static::delete_user_overrides($assign, $user);
@@ -475,10 +486,10 @@ class provider implements metadataprovider, pluginprovider, preference_provider 
                 $data->duedate = transform::datetime($overrides->duedate);
             }
             if (!empty($overrides->cutoffdate)) {
-                $overrides->cutoffdate = transform::datetime($overrides->cutoffdate);
+                $data->cutoffdate = transform::datetime($overrides->cutoffdate);
             }
             if (!empty($overrides->allowsubmissionsfromdate)) {
-                $overrides->allowsubmissionsfromdate = transform::datetime($overrides->allowsubmissionsfromdate);
+                $data->allowsubmissionsfromdate = transform::datetime($overrides->allowsubmissionsfromdate);
             }
             if (!empty($data)) {
                 writer::with_context($context)->export_data([get_string('overrides', 'mod_assign')], $data);
@@ -499,6 +510,8 @@ class provider implements metadataprovider, pluginprovider, preference_provider 
             bool $exportforteacher = false) {
         $submissions = $assign->get_all_submissions($user->id);
         $teacher = ($exportforteacher) ? $user : null;
+        $gradingmanager = get_grading_manager($context, 'mod_assign', 'submissions');
+        $controller = $gradingmanager->get_active_controller();
         foreach ($submissions as $submission) {
             // Attempt numbers start at zero, which is fine for programming, but doesn't make as much sense
             // for users.
@@ -518,6 +531,10 @@ class provider implements metadataprovider, pluginprovider, preference_provider 
                         [$params]);
 
                 self::export_grade_data($grade, $context, $submissionpath);
+                // Check for advanced grading and retrieve that information.
+                if (isset($controller)) {
+                    \core_grading\privacy\provider::export_item_data($context, $grade->id, $submissionpath);
+                }
             }
         }
     }
