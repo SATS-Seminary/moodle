@@ -2053,7 +2053,11 @@ function get_user_preferences($name = null, $default = null, $user = null) {
     } else if (isset($user->id)) {
         // Is a valid object.
     } else if (is_numeric($user)) {
-        $user = (object)array('id' => (int)$user);
+        if ($USER->id == $user) {
+            $user = $USER;
+        } else {
+            $user = (object)array('id' => (int)$user);
+        }
     } else {
         throw new coding_exception('Invalid $user parameter in get_user_preferences() call');
     }
@@ -3034,7 +3038,10 @@ function require_course_login($courseorid, $autologinguest = true, $cm = null, $
             // If $PAGE->course, and hence $PAGE->context, have not already been set up properly, set them up now.
             $PAGE->set_course($PAGE->course);
         }
-        user_accesstime_log(SITEID);
+        // Do not update access time for webservice or ajax requests.
+        if (!WS_SERVER && !AJAX_SCRIPT) {
+            user_accesstime_log(SITEID);
+        }
         return;
 
     } else {
@@ -6374,8 +6381,10 @@ function send_password_change_info($user) {
 function email_is_not_allowed($email) {
     global $CFG;
 
+    // Comparing lowercase domains.
+    $email = strtolower($email);
     if (!empty($CFG->allowemailaddresses)) {
-        $allowed = explode(' ', $CFG->allowemailaddresses);
+        $allowed = explode(' ', strtolower($CFG->allowemailaddresses));
         foreach ($allowed as $allowedpattern) {
             $allowedpattern = trim($allowedpattern);
             if (!$allowedpattern) {
@@ -6394,7 +6403,7 @@ function email_is_not_allowed($email) {
         return get_string('emailonlyallowed', '', $CFG->allowemailaddresses);
 
     } else if (!empty($CFG->denyemailaddresses)) {
-        $denied = explode(' ', $CFG->denyemailaddresses);
+        $denied = explode(' ', strtolower($CFG->denyemailaddresses));
         foreach ($denied as $deniedpattern) {
             $deniedpattern = trim($deniedpattern);
             if (!$deniedpattern) {

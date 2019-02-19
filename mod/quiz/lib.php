@@ -1800,9 +1800,7 @@ function quiz_supports($feature) {
 function quiz_get_extra_capabilities() {
     global $CFG;
     require_once($CFG->libdir . '/questionlib.php');
-    $caps = question_get_all_capabilities();
-    $caps[] = 'moodle/site:accessallgroups';
-    return $caps;
+    return question_get_all_capabilities();
 }
 
 /**
@@ -2184,6 +2182,12 @@ function mod_quiz_core_calendar_provide_event_action(calendar_event $event,
 
     // Check if quiz is closed, if so don't display it.
     if (!empty($quiz->timeclose) && $quiz->timeclose <= time()) {
+        return null;
+    }
+
+    if (!$quizobj->is_participant($USER->id)) {
+        // If the user is not a participant then they have
+        // no action to take. This will filter out the events for teachers.
         return null;
     }
 
