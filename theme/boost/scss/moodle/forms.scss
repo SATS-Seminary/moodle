@@ -169,6 +169,11 @@ div.backup-section + form {
     direction: ltr;
 }
 
+// Reduce the mediaplugin width when using inside forms.
+.que.match .mediaplugin {
+    width: 50vw;
+}
+
 /* rtl:ignore */
 #page-admin-grade-edit-scale-edit .error input#id_name {
     margin-right: 170px;
@@ -322,6 +327,13 @@ fieldset.coursesearchbox label {
     top: 0.2em;
     left: -1.5em;
     cursor: pointer;
+
+    .loading-icon {
+        position: absolute;
+        top: 0;
+        left: 0;
+        background-color: $white;
+    }
 }
 
 .form-autocomplete-selection:focus {

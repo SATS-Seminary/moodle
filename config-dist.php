@@ -614,6 +614,12 @@ $CFG->admin = 'admin';
 //
 //      $CFG->expectedcronfrequency = 200;
 //
+// Session lock warning threshold. Long running pages should release the session using \core\session\manager::write_close().
+// Set this threshold to any value greater than 0 to add developer warnings when a page locks the session for too long.
+// The session should rarely be locked for more than 1 second. The input should be in seconds and may be a float.
+//
+//      $CFG->debugsessionlock = 5;
+//
 //=========================================================================
 // 7. SETTINGS FOR DEVELOPMENT SERVERS - not intended for production use!!!
 //=========================================================================
@@ -643,11 +649,9 @@ $CFG->admin = 'admin';
 //   http://yuilibrary.com/yui/docs/api/classes/config.html#property_logInclude
 //   http://yuilibrary.com/yui/docs/api/classes/config.html#property_logExclude
 // $CFG->yuiloginclude = array(
-//     'moodle-core-dock-loader' => true,
 //     'moodle-course-categoryexpander' => true,
 // );
 // $CFG->yuilogexclude = array(
-//     'moodle-core-dock' => true,
 //     'moodle-core-notification' => true,
 // );
 //
@@ -812,6 +816,12 @@ $CFG->admin = 'admin';
 // be thrown when using them. The setting is disabled by default.
 // Example:
 //   $CFG->behat_usedeprecated = true;
+//
+// If you are using a slow machine, it may help to increase the timeouts that Behat uses. The
+// following example will increase timeouts by a factor of 3 (using 30 seconds instead of 10
+// seconds, for instance).
+// Example:
+//   $CFG->behat_increasetimeout = 3;
 //
 // Including feature files from directories outside the dirroot is possible if required. The setting
 // requires that the running user has executable permissions on all parent directories in the paths.

@@ -813,6 +813,7 @@ class assign {
         }
 
         // Delete the instance.
+        // We must delete the module record after we delete the grade item.
         $DB->delete_records('assign', array('id'=>$this->get_instance()->id));
 
         return $result;
@@ -5287,7 +5288,7 @@ class assign {
 
             // Show the grader's identity if 'Hide Grader' is disabled or has the 'Show Hidden Grader' capability.
             $showgradername = (
-                    has_capability('mod/assign:showhiddengrader', $this->context, $user) or
+                    has_capability('mod/assign:showhiddengrader', $this->context) or
                     !$this->is_hidden_grader()
             );
 
@@ -6193,7 +6194,7 @@ class assign {
                                                         $assignmentname,
                                                         $blindmarking,
                                                         $uniqueidforuser) {
-        global $CFG;
+        global $CFG, $PAGE;
 
         $info = new stdClass();
         if ($blindmarking) {
@@ -6243,6 +6244,20 @@ class assign {
         $eventdata->notification    = 1;
         $eventdata->contexturl      = $info->url;
         $eventdata->contexturlname  = $info->assignment;
+        $customdata = [
+            'cmid' => $coursemodule->id,
+            'instance' => $coursemodule->instance,
+            'messagetype' => $messagetype,
+            'blindmarking' => $blindmarking,
+            'uniqueidforuser' => $uniqueidforuser,
+        ];
+        // Check if the userfrom is real and visible.
+        if (!empty($userfrom->id) && core_user::is_real_user($userfrom->id)) {
+            $userpicture = new user_picture($userfrom);
+            $userpicture->includetoken = $userto->id; // Generate an out-of-session token for the user receiving the message.
+            $customdata['notificationiconurl'] = $userpicture->get_url($PAGE)->out(false);
+        }
+        $eventdata->customdata = $customdata;
 
         message_send($eventdata);
     }
@@ -8987,10 +9002,15 @@ class assign {
 
         // Trigger the course module viewed event.
         $assigninstance = $this->get_instance();
-        $event = \mod_assign\event\course_module_viewed::create(array(
-                'objectid' => $assigninstance->id,
-                'context' => $this->get_context()
-        ));
+        $params = [
+            'objectid' => $assigninstance->id,
+            'context' => $this->get_context()
+        ];
+        if ($this->is_blind_marking()) {
+            $params['anonymous'] = 1;
+        }
+
+        $event = \mod_assign\event\course_module_viewed::create($params);
 
         $event->add_record_snapshot('assign', $assigninstance);
         $event->trigger();
