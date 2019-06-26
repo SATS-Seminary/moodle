@@ -321,6 +321,7 @@ class page_requirements_manager {
             $this->M_cfg = array(
                 'wwwroot'             => $CFG->wwwroot,
                 'sesskey'             => sesskey(),
+                'sessiontimeout'      => $CFG->sessiontimeout,
                 'themerev'            => theme_get_revision(),
                 'slasharguments'      => (int)(!empty($CFG->slasharguments)),
                 'theme'               => $page->theme->name,
@@ -1638,7 +1639,16 @@ class page_requirements_manager {
             'areyousure',
             'closebuttontitle',
             'unknownerror',
+            'error',
+            'file',
+            'url',
         ), 'moodle');
+        $this->strings_for_js(array(
+            'debuginfo',
+            'line',
+            'stacktrace',
+        ), 'debug');
+        $this->string_for_js('labelsep', 'langconfig');
         if (!empty($this->stringsforjs)) {
             $strings = array();
             foreach ($this->stringsforjs as $component=>$v) {
