@@ -80,7 +80,7 @@ class core_component {
         'GeoIp2' => 'lib/maxmind/GeoIp2',
         'Sabberworm\\CSS' => 'lib/php-css-parser',
         'MoodleHQ\\RTLCSS' => 'lib/rtlcss',
-        'Leafo\\ScssPhp' => 'lib/scssphp',
+        'ScssPhp\\ScssPhp' => 'lib/scssphp',
         'Box\\Spout' => 'lib/spout/src/Spout',
         'MatthiasMullie\\Minify' => 'lib/minify/matthiasmullie-minify/src/',
         'MatthiasMullie\\PathConverter' => 'lib/minify/matthiasmullie-pathconverter/src/',
@@ -537,9 +537,8 @@ $cache = '.var_export($cache, true).';
         if (file_exists("$ownerdir/db/subplugins.json")) {
             $subplugins = (array) json_decode(file_get_contents("$ownerdir/db/subplugins.json"))->plugintypes;
         } else if (file_exists("$ownerdir/db/subplugins.php")) {
-            debugging('Use of subplugins.php has been deprecated. ' .
-                    'Please update your plugin to provide a subplugins.json file instead.',
-                    DEBUG_DEVELOPER);
+            error_log('Use of subplugins.php has been deprecated. ' .
+                "Please update your '$ownerdir' plugin to provide a subplugins.json file instead.");
             include("$ownerdir/db/subplugins.php");
         }
 

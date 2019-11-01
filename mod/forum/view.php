@@ -22,6 +22,8 @@
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
+use mod_forum\grades\forum_gradeitem;
+
 require_once('../../config.php');
 
 $managerfactory = mod_forum\local\container::get_manager_factory();
@@ -76,11 +78,42 @@ $cm = \cm_info::create($coursemodule);
 
 require_course_login($course, true, $cm);
 
+$istypesingle = 'single' === $forum->get_type();
+
+if ($mode) {
+    set_user_preference('forum_displaymode', $mode);
+}
+
+$displaymode = get_user_preferences('forum_displaymode', $CFG->forum_displaymode);
+
 $PAGE->set_context($forum->get_context());
 $PAGE->set_title($forum->get_name());
-$PAGE->add_body_class('forumtype-' . $forum->get_type());
+$PAGE->add_body_class('forumtype-' . $forum->get_type() . ' reset-style');
 $PAGE->set_heading($course->fullname);
-$PAGE->set_button(forum_search_form($course, $search));
+$PAGE->set_include_region_main_settings_in_header_actions(true);
+
+$buttons = [];
+if ($capabilitymanager->can_grade($USER)) {
+    $forumgradeitem = forum_gradeitem::load_from_forum_entity($forum);
+    if ($forumgradeitem->is_grading_enabled()) {
+        $groupid = groups_get_activity_group($cm, true) ?: null;
+        $gradeobj = (object) [
+            'contextid' => $forum->get_context()->id,
+            'cmid' => $cmid,
+            'name' => $forum->get_name(),
+            'groupid' => $groupid,
+            'gradingcomponent' => $forumgradeitem->get_grading_component_name(),
+            'gradingcomponentsubtype' => $forumgradeitem->get_grading_component_subtype(),
+        ];
+        $buttons[] = $OUTPUT->render_from_template('mod_forum/grades/grade_button', $gradeobj);
+    }
+}
+$buttons[] = forum_search_form($course, $search);
+$PAGE->set_button(implode('', $buttons));
+
+if ($istypesingle && $displaymode == FORUM_MODE_MODERN) {
+    $PAGE->add_body_class('modern-display-mode reset-style');
+}
 
 if (empty($cm->visible) && !has_capability('moodle/course:viewhiddenactivities', $forum->get_context())) {
     redirect(
@@ -94,7 +127,7 @@ if (empty($cm->visible) && !has_capability('moodle/course:viewhiddenactivities',
 if (!$capabilitymanager->can_view_discussions($USER)) {
     redirect(
         $urlfactory->get_course_url_from_forum($forum),
-        get_string('noviewdiscussionspermission', 'fourm'),
+        get_string('noviewdiscussionspermission', 'forum'),
         null,
         \core\output\notification::NOTIFY_WARNING
     );
@@ -125,15 +158,9 @@ if (!empty($CFG->enablerssfeeds) && !empty($CFG->forum_enablerssfeeds) && $forum
 echo $OUTPUT->header();
 echo $OUTPUT->heading(format_string($forum->get_name()), 2);
 
-if ('single' !== $forum->get_type() && !empty($forum->get_intro())) {
+if (!$istypesingle && !empty($forum->get_intro())) {
     echo $OUTPUT->box(format_module_intro('forum', $forumrecord, $cm->id), 'generalbox', 'intro');
 }
-
-if ($mode) {
-    set_user_preference('forum_displaymode', $mode);
-}
-
-$displaymode = get_user_preferences('forum_displaymode', $CFG->forum_displaymode);
 
 if ($sortorder) {
     set_user_preference('forum_discussionlistsortorder', $sortorder);
@@ -160,12 +187,27 @@ switch ($forum->get_type()) {
                 $orderpostsby
             );
         echo $discussionsrenderer->render($USER, $post, $replies);
+
+        if (!$CFG->forum_usermarksread && forum_tp_is_tracked($forumrecord, $USER)) {
+            $postids = array_map(function($post) {
+                return $post->get_id();
+            }, array_merge([$post], array_values($replies)));
+            forum_tp_mark_posts_read($USER, $postids);
+        }
         break;
     case 'blog':
         $discussionsrenderer = $rendererfactory->get_blog_discussion_list_renderer($forum);
         // Blog forums always show discussions newest first.
         echo $discussionsrenderer->render($USER, $cm, $groupid, $discussionlistvault::SORTORDER_CREATED_DESC,
             $pageno, $pagesize);
+
+        if (!$CFG->forum_usermarksread && forum_tp_is_tracked($forumrecord, $USER)) {
+            $discussions = mod_forum_get_discussion_summaries($forum, $USER, $groupid, null, $pageno, $pagesize);
+            $firstpostids = array_map(function($discussion) {
+                return $discussion->get_first_post()->get_id();
+            }, array_values($discussions));
+            forum_tp_mark_posts_read($USER, $firstpostids);
+        }
         break;
     default:
         $discussionsrenderer = $rendererfactory->get_discussion_list_renderer($forum);

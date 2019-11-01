@@ -942,6 +942,8 @@ class core_course_externallib_testcase extends externallib_advanced_testcase {
                 $this->assertEquals($formattedtext, $module['description']);
                 $this->assertEquals($forumcm->instance, $module['instance']);
                 $this->assertContains('1 unread post', $module['afterlink']);
+                $this->assertFalse($module['noviewlink']);
+                $this->assertNotEmpty($module['description']);  // Module showdescription is on.
                 $testexecuted = $testexecuted + 2;
             } else if ($module['id'] == $labelcm->id and $module['modname'] == 'label') {
                 $cm = $modinfo->cms[$labelcm->id];
@@ -949,9 +951,13 @@ class core_course_externallib_testcase extends externallib_advanced_testcase {
                     array('noclean' => true, 'para' => false, 'filter' => false));
                 $this->assertEquals($formattedtext, $module['description']);
                 $this->assertEquals($labelcm->instance, $module['instance']);
+                $this->assertTrue($module['noviewlink']);
+                $this->assertNotEmpty($module['description']);  // Label always prints the description.
                 $testexecuted = $testexecuted + 1;
             } else if ($module['id'] == $datacm->id and $module['modname'] == 'data') {
                 $this->assertContains('customcompletionrules', $module['customdata']);
+                $this->assertFalse($module['noviewlink']);
+                $this->assertArrayNotHasKey('description', $module);
                 $testexecuted = $testexecuted + 1;
             }
         }
@@ -2059,7 +2065,7 @@ class core_course_externallib_testcase extends externallib_advanced_testcase {
         $outcomegradeitem->cmid = 0;
         $outcomegradeitem->courseid = $course->id;
         $outcomegradeitem->aggregationcoef = 0;
-        $outcomegradeitem->itemnumber = 1; // The activity's original grade item will be 0.
+        $outcomegradeitem->itemnumber = 1000; // Outcomes start at 1000.
         $outcomegradeitem->gradetype = GRADE_TYPE_SCALE;
         $outcomegradeitem->scaleid = $outcome->scaleid;
         $outcomegradeitem->insert();
@@ -2290,12 +2296,11 @@ class core_course_externallib_testcase extends externallib_advanced_testcase {
                 $this->assertFalse($adminoptions->outcomes);
                 $this->assertFalse($adminoptions->badges);
                 $this->assertFalse($adminoptions->import);
-                $this->assertFalse($adminoptions->publish);
                 $this->assertFalse($adminoptions->reset);
                 $this->assertFalse($adminoptions->roles);
                 $this->assertFalse($adminoptions->editcompletion);
             } else {
-                $this->assertCount(15, $course['options']);
+                $this->assertCount(14, $course['options']);
                 $this->assertFalse($adminoptions->update);
                 $this->assertFalse($adminoptions->filters);
                 $this->assertFalse($adminoptions->reports);
@@ -2307,7 +2312,6 @@ class core_course_externallib_testcase extends externallib_advanced_testcase {
                 $this->assertFalse($adminoptions->outcomes);
                 $this->assertTrue($adminoptions->badges);
                 $this->assertFalse($adminoptions->import);
-                $this->assertFalse($adminoptions->publish);
                 $this->assertFalse($adminoptions->reset);
                 $this->assertFalse($adminoptions->roles);
                 $this->assertFalse($adminoptions->editcompletion);
@@ -2983,5 +2987,56 @@ class core_course_externallib_testcase extends externallib_advanced_testcase {
         $result = core_course_external::get_recent_courses($student->id);
         $this->assertCount(1, $result);
         $this->assertEquals($courses[0]->id, array_shift($result)->id);
+    }
+
+    /**
+     * Test get enrolled users by cmid function.
+     */
+    public function test_get_enrolled_users_by_cmid() {
+        $this->resetAfterTest(true);
+
+        $user1 = self::getDataGenerator()->create_user();
+        $user2 = self::getDataGenerator()->create_user();
+
+        // Set the first created user to the test user.
+        self::setUser($user1);
+
+        // Create course to add the module.
+        $course1 = self::getDataGenerator()->create_course();
+
+        // Forum with tracking off.
+        $record = new stdClass();
+        $record->course = $course1->id;
+        $forum1 = self::getDataGenerator()->create_module('forum', $record);
+
+        // Following lines enrol and assign default role id to the users.
+        $this->getDataGenerator()->enrol_user($user1->id, $course1->id);
+        $this->getDataGenerator()->enrol_user($user2->id, $course1->id);
+
+        // Create what we expect to be returned when querying the course module.
+        $expectedusers = array(
+            'users' => array(),
+            'warnings' => array(),
+        );
+
+        $expectedusers['users'][0] = [
+            'id' => $user1->id,
+            'fullname' => fullname($user1),
+            'firstname' => $user1->firstname,
+            'lastname' => $user1->lastname,
+        ];
+        $expectedusers['users'][1] = [
+            'id' => $user2->id,
+            'fullname' => fullname($user2),
+            'firstname' => $user2->firstname,
+            'lastname' => $user2->lastname,
+        ];
+
+        // Test getting the users in a given context.
+        $users = core_course_external::get_enrolled_users_by_cmid($forum1->cmid);
+        $users = external_api::clean_returnvalue(core_course_external::get_enrolled_users_by_cmid_returns(), $users);
+
+        $this->assertEquals(2, count($users['users']));
+        $this->assertEquals($expectedusers, $users);
     }
 }

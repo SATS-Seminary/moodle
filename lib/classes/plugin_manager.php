@@ -1647,7 +1647,7 @@ class core_plugin_manager {
         $plugins = array(
             'qformat' => array('blackboard', 'learnwise'),
             'auth' => array('radius', 'fc', 'nntp', 'pam', 'pop3', 'imap'),
-            'block' => array('course_overview', 'messages'),
+            'block' => array('course_overview', 'messages', 'community', 'participants'),
             'cachestore' => array('memcache'),
             'enrol' => array('authorize'),
             'report' => array('search'),
@@ -1687,7 +1687,7 @@ class core_plugin_manager {
                 'equation', 'fontcolor', 'html', 'image', 'indent', 'italic',
                 'link', 'managefiles', 'media', 'noautolink', 'orderedlist',
                 'recordrtc', 'rtl', 'strike', 'subscript', 'superscript', 'table',
-                'title', 'underline', 'undo', 'unorderedlist'
+                'title', 'underline', 'undo', 'unorderedlist', 'h5p'
             ),
 
             'assignment' => array(
@@ -1714,11 +1714,11 @@ class core_plugin_manager {
             'block' => array(
                 'activity_modules', 'activity_results', 'admin_bookmarks', 'badges',
                 'blog_menu', 'blog_recent', 'blog_tags', 'calendar_month',
-                'calendar_upcoming', 'comments', 'community',
+                'calendar_upcoming', 'comments',
                 'completionstatus', 'course_list', 'course_summary',
                 'feedback', 'globalsearch', 'glossary_random', 'html',
                 'login', 'lp', 'mentees', 'mnet_hosts', 'myoverview', 'myprofile',
-                'navigation', 'news_items', 'online_users', 'participants',
+                'navigation', 'news_items', 'online_users',
                 'private_files', 'quiz_results', 'recent_activity', 'recentlyaccesseditems',
                 'recentlyaccessedcourses', 'rss_client', 'search_forums', 'section_links',
                 'selfcompletion', 'settings', 'site_main_menu',
@@ -1778,7 +1778,7 @@ class core_plugin_manager {
 
             'filter' => array(
                 'activitynames', 'algebra', 'censor', 'emailprotect',
-                'emoticon', 'mathjaxloader', 'mediaplugin', 'multilang', 'tex', 'tidy',
+                'emoticon', 'displayh5p', 'mathjaxloader', 'mediaplugin', 'multilang', 'tex', 'tidy',
                 'urltolink', 'data', 'glossary'
             ),
 
@@ -2233,6 +2233,11 @@ class core_plugin_manager {
      * @return bool
      */
     protected function common_uninstall_check(\core\plugininfo\base $pluginfo) {
+        global $CFG;
+        // Check if uninstall is allowed from the GUI.
+        if (!empty($CFG->uninstallclionly) && (!CLI_SCRIPT)) {
+            return false;
+        }
 
         if (!$pluginfo->is_uninstall_allowed()) {
             // The plugin's plugininfo class declares it should not be uninstalled.

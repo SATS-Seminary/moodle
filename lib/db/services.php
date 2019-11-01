@@ -334,6 +334,20 @@ $functions = array(
         'capabilities' => 'moodle/comment:view',
         'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
     ),
+    'core_comment_add_comments' => array(
+        'classname' => 'core_comment_external',
+        'methodname' => 'add_comments',
+        'description' => 'Adds a comment or comments.',
+        'type' => 'write',
+        'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
+    'core_comment_delete_comments' => array(
+        'classname' => 'core_comment_external',
+        'methodname' => 'delete_comments',
+        'description' => 'Deletes a comment or comments.',
+        'type' => 'write',
+        'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
     'core_completion_get_activities_completion_status' => array(
         'classname' => 'core_completion_external',
         'methodname' => 'get_activities_completion_status',
@@ -599,6 +613,14 @@ $functions = array(
         'ajax' => true,
         'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
     ),
+    'core_course_get_enrolled_users_by_cmid' => array(
+        'classname' => 'core_course_external',
+        'methodname' => 'get_enrolled_users_by_cmid',
+        'classpath' => 'course/externallib.php',
+        'description' => 'List users bycourse module id.',
+        'type' => 'read',
+        'ajax' => true,
+    ),
     'core_enrol_get_course_enrolment_methods' => array(
         'classname' => 'core_enrol_external',
         'methodname' => 'get_course_enrolment_methods',
@@ -634,6 +656,16 @@ $functions = array(
         'type' => 'read',
         'capabilities' => 'moodle/course:enrolreview'
     ),
+    'core_enrol_search_users' => [
+        'classname' => 'core_enrol_external',
+        'methodname' => 'search_users',
+        'classpath' => 'enrol/externallib.php',
+        'description' => 'Search within the list of course participants',
+        'ajax' => true,
+        'type' => 'read',
+        'capabilities' => 'moodle/course:viewparticipants',
+        'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ],
     'core_enrol_get_users_courses' => array(
         'classname' => 'core_enrol_external',
         'methodname' => 'get_users_courses',
@@ -647,7 +679,16 @@ $functions = array(
         'classname' => 'core_enrol_external',
         'methodname' => 'edit_user_enrolment',
         'classpath' => 'enrol/externallib.php',
-        'description' => 'External function that updates a given user enrolment',
+        'description' => '** DEPRECATED ** Please do not call this function any more.
+                          External function that updates a given user enrolment',
+        'type' => 'write',
+        'ajax' => true,
+    ),
+    'core_enrol_submit_user_enrolment_form' => array(
+        'classname' => 'core_enrol_external',
+        'methodname' => 'submit_user_enrolment_form',
+        'classpath' => 'enrol/externallib.php',
+        'description' => 'Submit form data for enrolment form',
         'type' => 'write',
         'ajax' => true,
     ),
@@ -769,6 +810,40 @@ $functions = array(
         'description' => 'Update a grade item and associated student grades.',
         'type' => 'write',
     ),
+    'core_grades_grader_gradingpanel_point_fetch' => [
+        'classname' => 'core_grades\\grades\\grader\\gradingpanel\\point\\external\\fetch',
+        'methodname' => 'execute',
+        'description' => 'Fetch the data required to display the grader grading panel for simple grading, ' .
+            'creating the grade item if required',
+        'type' => 'write',
+        'ajax' => true,
+        'services' => [MOODLE_OFFICIAL_MOBILE_SERVICE],
+    ],
+    'core_grades_grader_gradingpanel_point_store' => [
+        'classname' => 'core_grades\\grades\\grader\\gradingpanel\\point\\external\\store',
+        'methodname' => 'execute',
+        'description' => 'Store the data required to display the grader grading panel for simple grading',
+        'type' => 'write',
+        'ajax' => true,
+        'services' => [MOODLE_OFFICIAL_MOBILE_SERVICE],
+    ],
+    'core_grades_grader_gradingpanel_scale_fetch' => [
+        'classname' => 'core_grades\\grades\\grader\\gradingpanel\\scale\\external\\fetch',
+        'methodname' => 'execute',
+        'description' => 'Fetch the data required to display the grader grading panel for scale-based grading, ' .
+            'creating the grade item if required',
+        'type' => 'write',
+        'ajax' => true,
+        'services' => [MOODLE_OFFICIAL_MOBILE_SERVICE],
+    ],
+    'core_grades_grader_gradingpanel_scale_store' => [
+        'classname' => 'core_grades\\grades\\grader\\gradingpanel\\scale\\external\\store',
+        'methodname' => 'execute',
+        'description' => 'Store the data required to display the grader grading panel for scale-based grading',
+        'type' => 'write',
+        'ajax' => true,
+        'services' => [MOODLE_OFFICIAL_MOBILE_SERVICE],
+    ],
     'core_grading_get_definitions' => array(
         'classname' => 'core_grading_external',
         'methodname' => 'get_definitions',
@@ -862,6 +937,7 @@ $functions = array(
         'classpath' => 'group/externallib.php',
         'description' => 'Returns all groupings in specified course.',
         'type' => 'read',
+        'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
     ),
     'core_group_get_course_groups' => array(
         'classname' => 'core_group_external',
@@ -870,7 +946,8 @@ $functions = array(
         'description' => 'Returns all groups in specified course.',
         'type' => 'read',
         'ajax' => true,
-        'capabilities' => 'moodle/course:managegroups'
+        'capabilities' => 'moodle/course:managegroups',
+        'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
     ),
     'core_group_get_course_user_groups' => array(
         'classname' => 'core_group_external',
@@ -1964,6 +2041,24 @@ $functions = array(
         'description'  => 'Re-order a competency.',
         'type'         => 'write',
         'capabilities' => 'moodle/competency:competencymanage',
+        'ajax'         => true,
+    ),
+    'core_competency_list_course_module_competencies' => array(
+        'classname'    => 'core_competency\external',
+        'methodname'   => 'list_course_module_competencies',
+        'classpath'    => '',
+        'description'  => 'List the competencies in a course module',
+        'type'         => 'read',
+        'capabilities' => 'moodle/competency:coursecompetencyview',
+        'ajax'         => true,
+    ),
+    'core_competency_count_course_module_competencies' => array(
+        'classname'    => 'core_competency\external',
+        'methodname'   => 'count_course_module_competencies',
+        'classpath'    => '',
+        'description'  => 'Count the competencies in a course module',
+        'type'         => 'read',
+        'capabilities' => 'moodle/competency:coursecompetencyview',
         'ajax'         => true,
     ),
     'core_competency_list_course_competencies' => array(

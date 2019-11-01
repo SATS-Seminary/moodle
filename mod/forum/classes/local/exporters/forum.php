@@ -61,6 +61,7 @@ class forum extends exporter {
     protected static function define_other_properties() {
         return [
             'id' => ['type' => PARAM_INT],
+            'name' => ['type' => PARAM_RAW],
             'state' => [
                 'type' => [
                     'groupmode' => ['type' => PARAM_INT],
@@ -89,6 +90,12 @@ class forum extends exporter {
                     'sortlastpostdesc' => ['type' => PARAM_URL],
                     'sortcreatedasc' => ['type' => PARAM_URL],
                     'sortcreateddesc' => ['type' => PARAM_URL],
+                    'sortdiscussionasc' => ['type' => PARAM_URL],
+                    'sortdiscussiondesc' => ['type' => PARAM_URL],
+                    'sortstarterasc' => ['type' => PARAM_URL],
+                    'sortstarterdesc' => ['type' => PARAM_URL],
+                    'sortgroupasc' => ['type' => PARAM_URL],
+                    'sortgroupdesc' => ['type' => PARAM_URL],
                 ],
             ],
         ];
@@ -110,6 +117,7 @@ class forum extends exporter {
 
         return [
             'id' => $this->forum->get_id(),
+            'name' => $this->forum->get_name(),
             'state' => [
                 'groupmode' => $this->forum->get_effective_group_mode(),
             ],
@@ -137,7 +145,19 @@ class forum extends exporter {
                 'sortcreatedasc' => $urlfactory->get_forum_view_url_from_forum($this->forum, null,
                     $discussionvault::SORTORDER_CREATED_ASC)->out(false),
                 'sortcreateddesc' => $urlfactory->get_forum_view_url_from_forum($this->forum, null,
-                    $discussionvault::SORTORDER_CREATED_DESC)->out(false)
+                    $discussionvault::SORTORDER_CREATED_DESC)->out(false),
+                'sortdiscussionasc' => $urlfactory->get_forum_view_url_from_forum($this->forum, null,
+                    $discussionvault::SORTORDER_DISCUSSION_ASC)->out(false),
+                'sortdiscussiondesc' => $urlfactory->get_forum_view_url_from_forum($this->forum, null,
+                    $discussionvault::SORTORDER_DISCUSSION_DESC)->out(false),
+                'sortstarterasc' => $urlfactory->get_forum_view_url_from_forum($this->forum, null,
+                    $discussionvault::SORTORDER_STARTER_ASC)->out(false),
+                'sortstarterdesc' => $urlfactory->get_forum_view_url_from_forum($this->forum, null,
+                    $discussionvault::SORTORDER_STARTER_DESC)->out(false),
+                'sortgroupasc' => $urlfactory->get_forum_view_url_from_forum($this->forum, null,
+                    $discussionvault::SORTORDER_GROUP_ASC)->out(false),
+                'sortgroupdesc' => $urlfactory->get_forum_view_url_from_forum($this->forum, null,
+                    $discussionvault::SORTORDER_GROUP_DESC)->out(false),
             ],
         ];
     }

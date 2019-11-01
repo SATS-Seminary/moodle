@@ -503,15 +503,7 @@ function quiz_user_outline($course, $user, $mod, $quiz) {
         $result->info = get_string('grade') . ': ' . get_string('hidden', 'grades');
     }
 
-    // Datesubmitted == time created. dategraded == time modified or time overridden
-    // if grade was last modified by the user themselves use date graded. Otherwise use
-    // date submitted.
-    // TODO: move this copied & pasted code somewhere in the grades API. See MDL-26704.
-    if ($grade->usermodified == $user->id || empty($grade->datesubmitted)) {
-        $result->time = $grade->dategraded;
-    } else {
-        $result->time = $grade->datesubmitted;
-    }
+    $result->time = grade_get_date_for_user_grade($grade, $user);
 
     return $result;
 }
@@ -749,7 +741,7 @@ function quiz_grade_item_update($quiz, $grades = null) {
     require_once($CFG->dirroot . '/mod/quiz/locallib.php');
     require_once($CFG->libdir . '/gradelib.php');
 
-    if (array_key_exists('cmidnumber', $quiz)) { // May not be always present.
+    if (property_exists($quiz, 'cmidnumber')) { // May not be always present.
         $params = array('itemname' => $quiz->name, 'idnumber' => $quiz->cmidnumber);
     } else {
         $params = array('itemname' => $quiz->name);
@@ -1128,6 +1120,14 @@ function quiz_process_options($quiz) {
     $quiz->reviewoverallfeedback = quiz_review_option_form_to_db($quiz, 'overallfeedback');
     $quiz->reviewattempt |= mod_quiz_display_options::DURING;
     $quiz->reviewoverallfeedback &= ~mod_quiz_display_options::DURING;
+
+    // Ensure that disabled checkboxes in completion settings are set to 0.
+    if (empty($quiz->completionusegrade)) {
+        $quiz->completionpass = 0;
+    }
+    if (empty($quiz->completionpass)) {
+        $quiz->completionattemptsexhausted = 0;
+    }
 }
 
 /**
@@ -2062,6 +2062,14 @@ function mod_quiz_core_calendar_provide_event_action(calendar_event $event,
 
     // Check they have capabilities allowing them to view the quiz.
     if (!has_any_capability(['mod/quiz:reviewmyattempts', 'mod/quiz:attempt'], $quizobj->get_context(), $userid)) {
+        return null;
+    }
+
+    $completion = new \completion_info($cm->get_course());
+
+    $completiondata = $completion->get_data($cm, false, $userid);
+
+    if ($completiondata->completionstate != COMPLETION_INCOMPLETE) {
         return null;
     }
 
