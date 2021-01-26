@@ -97,8 +97,8 @@ class fetch extends external_api {
      * @since Moodle 3.8
      */
     public static function execute(string $component, int $contextid, string $itemname, int $gradeduserid): array {
-        global $USER;
-
+        global $USER, $CFG;
+        require_once("{$CFG->libdir}/gradelib.php");
         [
             'component' => $component,
             'contextid' => $contextid,
@@ -128,23 +128,42 @@ class fetch extends external_api {
         }
 
         // Fetch the actual data.
-        $gradeduser = \core_user::get_user($gradeduserid);
+        $gradeduser = \core_user::get_user($gradeduserid, '*', MUST_EXIST);
+
+        // One can access its own grades. Others just if they're graders.
+        if ($gradeduserid != $USER->id) {
+            $gradeitem->require_user_can_grade($gradeduser, $USER);
+        }
+
+        $hasgrade = $gradeitem->user_has_grade($gradeduser);
         $grade = $gradeitem->get_grade_for_user($gradeduser, $USER);
 
-        return self::get_fetch_data($grade);
+        // Set up some items we need to return on other interfaces.
+        $gradegrade = \grade_grade::fetch(['itemid' => $gradeitem->get_grade_item()->id, 'userid' => $gradeduser->id]);
+        $gradername = $gradegrade ? fullname(\core_user::get_user($gradegrade->usermodified)) : null;
+        $maxgrade = (int) $gradeitem->get_grade_item()->grademax;
+
+        return self::get_fetch_data($grade, $hasgrade, $maxgrade, $gradername);
     }
 
     /**
      * Get the data to be fetched.
      *
      * @param stdClass $grade
+     * @param bool $hasgrade
+     * @param int $maxgrade
+     * @param string|null $gradername
      * @return array
      */
-    public static function get_fetch_data(stdClass $grade): array {
+    public static function get_fetch_data(stdClass $grade, bool $hasgrade, int $maxgrade, ?string $gradername): array {
         return [
             'templatename' => 'core_grades/grades/grader/gradingpanel/point',
+            'hasgrade' => $hasgrade,
             'grade' => [
                 'grade' => $grade->grade,
+                'usergrade' => $grade->grade,
+                'maxgrade' => $maxgrade,
+                'gradedby' => $gradername,
                 'timecreated' => $grade->timecreated,
                 'timemodified' => $grade->timemodified,
             ],
@@ -161,8 +180,12 @@ class fetch extends external_api {
     public static function execute_returns(): external_single_structure {
         return new external_single_structure([
             'templatename' => new external_value(PARAM_SAFEPATH, 'The template to use when rendering this data'),
+            'hasgrade' => new external_value(PARAM_BOOL, 'Does the user have a grade?'),
             'grade' => new external_single_structure([
                 'grade' => new external_value(PARAM_FLOAT, 'The numeric grade'),
+                'usergrade' => new external_value(PARAM_RAW, 'Current user grade'),
+                'maxgrade' => new external_value(PARAM_RAW, 'Max possible grade'),
+                'gradedby' => new external_value(PARAM_RAW, 'The assumed grader of this grading instance'),
                 'timecreated' => new external_value(PARAM_INT, 'The time that the grade was created'),
                 'timemodified' => new external_value(PARAM_INT, 'The time that the grade was last updated'),
             ]),

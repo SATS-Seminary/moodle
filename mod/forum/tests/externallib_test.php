@@ -35,7 +35,7 @@ class mod_forum_external_testcase extends externallib_advanced_testcase {
     /**
      * Tests set up
      */
-    protected function setUp() {
+    protected function setUp(): void {
         global $CFG;
 
         // We must clear the subscription caches. This has to be done both before each test, and after in case of other
@@ -45,7 +45,7 @@ class mod_forum_external_testcase extends externallib_advanced_testcase {
         require_once($CFG->dirroot . '/mod/forum/externallib.php');
     }
 
-    public function tearDown() {
+    public function tearDown(): void {
         // We must clear the subscription caches. This has to be done both before each test, and after in case of other
         // tests using these functions.
         \mod_forum\subscriptions::reset_forum_cache();
@@ -527,7 +527,7 @@ class mod_forum_external_testcase extends externallib_advanced_testcase {
      * Tests is similar to the get_forum_discussion_posts only utilizing the new return structure and entities
      */
     public function test_mod_forum_get_discussion_posts() {
-        global $CFG, $PAGE;
+        global $CFG;
 
         $this->resetAfterTest(true);
 
@@ -537,6 +537,9 @@ class mod_forum_external_testcase extends externallib_advanced_testcase {
         $urlfactory = mod_forum\local\container::get_url_factory();
         $legacyfactory = mod_forum\local\container::get_legacy_data_mapper_factory();
         $entityfactory = mod_forum\local\container::get_entity_factory();
+
+        // Create course to add the module.
+        $course1 = self::getDataGenerator()->create_course();
 
         // Create a user who can track forums.
         $record = new stdClass();
@@ -551,7 +554,7 @@ class mod_forum_external_testcase extends externallib_advanced_testcase {
             'isdeleted' => false,
             'groups' => [],
             'urls' => [
-                'profile' => $urlfactory->get_author_profile_url($user2entity),
+                'profile' => $urlfactory->get_author_profile_url($user2entity, $course1->id)->out(false),
                 'profileimage' => $urlfactory->get_author_profile_image_url($user2entity),
             ]
         ];
@@ -565,7 +568,7 @@ class mod_forum_external_testcase extends externallib_advanced_testcase {
             'groups' => [],
             'isdeleted' => false,
             'urls' => [
-                'profile' => $urlfactory->get_author_profile_url($user3entity),
+                'profile' => $urlfactory->get_author_profile_url($user3entity, $course1->id)->out(false),
                 'profileimage' => $urlfactory->get_author_profile_image_url($user3entity),
             ]
         ];
@@ -574,9 +577,6 @@ class mod_forum_external_testcase extends externallib_advanced_testcase {
 
         // Set the first created user to the test user.
         self::setUser($user1);
-
-        // Create course to add the module.
-        $course1 = self::getDataGenerator()->create_course();
 
         // Forum with tracking off.
         $record = new stdClass();
@@ -652,7 +652,7 @@ class mod_forum_external_testcase extends externallib_advanced_testcase {
             'groups' => [],
             'isdeleted' => true,
             'urls' => [
-                'profile' => $urlfactory->get_author_profile_url($user3entity),
+                'profile' => $urlfactory->get_author_profile_url($user3entity, $course1->id)->out(false),
                 'profileimage' => $urlfactory->get_author_profile_image_url($user3entity),
             ]
         ];
@@ -660,6 +660,8 @@ class mod_forum_external_testcase extends externallib_advanced_testcase {
         // Create what we expect to be returned when querying the discussion.
         $expectedposts = array(
             'posts' => array(),
+            'courseid' => $course1->id,
+            'forumid' => $forum1->id,
             'ratinginfo' => array(
                 'contextid' => $forum1context->id,
                 'component' => 'mod_forum',
@@ -683,6 +685,7 @@ class mod_forum_external_testcase extends externallib_advanced_testcase {
             'parentid' => $discussion1reply2->parent,
             'hasparent' => true,
             'timecreated' => $discussion1reply2->created,
+            'timemodified' => $discussion1reply2->modified,
             'subject' => $discussion1reply2->subject,
             'replysubject' => get_string('re', 'mod_forum') . " {$discussion1reply2->subject}",
             'message' => $message,
@@ -740,6 +743,7 @@ class mod_forum_external_testcase extends externallib_advanced_testcase {
             'parentid' => $discussion1reply1->parent,
             'hasparent' => true,
             'timecreated' => $discussion1reply1->created,
+            'timemodified' => $discussion1reply1->modified,
             'subject' => $discussion1reply1->subject,
             'replysubject' => get_string('re', 'mod_forum') . " {$discussion1reply1->subject}",
             'message' => $message,
@@ -1683,7 +1687,7 @@ class mod_forum_external_testcase extends externallib_advanced_testcase {
                 $this->assertEquals($thispost['attachment'], 1, "There should be a non-inline attachment");
                 $this->assertCount(1, $thispost['attachments'], "There should be 1 attachment");
                 $this->assertEquals($thispost['attachments'][0]['filename'], $attachfilename, "There should be 1 attachment");
-                $this->assertContains('pluginfile.php', $thispost['message']);
+                $this->assertStringContainsString('pluginfile.php', $thispost['message']);
                 $postfound = true;
                 break;
             }
@@ -1900,8 +1904,8 @@ class mod_forum_external_testcase extends externallib_advanced_testcase {
                 $this->assertEquals($thisdiscussion['attachment'], 1, "There should be a non-inline attachment");
                 $this->assertCount(1, $thisdiscussion['attachments'], "There should be 1 attachment");
                 $this->assertEquals($thisdiscussion['attachments'][0]['filename'], $attachfilename, "There should be 1 attachment");
-                $this->assertNotContains('draftfile.php', $thisdiscussion['message']);
-                $this->assertContains('pluginfile.php', $thisdiscussion['message']);
+                $this->assertStringNotContainsString('draftfile.php', $thisdiscussion['message']);
+                $this->assertStringContainsString('pluginfile.php', $thisdiscussion['message']);
                 $postfound = true;
                 break;
             }
@@ -2609,6 +2613,7 @@ class mod_forum_external_testcase extends externallib_advanced_testcase {
      * Test get forum posts by user id.
      */
     public function test_mod_forum_get_discussion_posts_by_userid() {
+        global $DB;
         $this->resetAfterTest(true);
 
         $urlfactory = mod_forum\local\container::get_url_factory();
@@ -2618,6 +2623,9 @@ class mod_forum_external_testcase extends externallib_advanced_testcase {
         $legacydatamapper = mod_forum\local\container::get_legacy_data_mapper_factory();
         $legacypostmapper = $legacydatamapper->get_post_data_mapper();
 
+        // Create course to add the module.
+        $course1 = self::getDataGenerator()->create_course();
+
         $user1 = self::getDataGenerator()->create_user();
         $user1entity = $entityfactory->get_author_from_stdclass($user1);
         $exporteduser1 = [
@@ -2625,7 +2633,7 @@ class mod_forum_external_testcase extends externallib_advanced_testcase {
             'fullname' => fullname($user1),
             'groups' => [],
             'urls' => [
-                'profile' => $urlfactory->get_author_profile_url($user1entity),
+                'profile' => $urlfactory->get_author_profile_url($user1entity, $course1->id)->out(false),
                 'profileimage' => $urlfactory->get_author_profile_image_url($user1entity),
             ],
             'isdeleted' => false,
@@ -2638,7 +2646,7 @@ class mod_forum_external_testcase extends externallib_advanced_testcase {
             'fullname' => fullname($user2),
             'groups' => [],
             'urls' => [
-                'profile' => $urlfactory->get_author_profile_url($user2entity),
+                'profile' => $urlfactory->get_author_profile_url($user2entity, $course1->id)->out(false),
                 'profileimage' => $urlfactory->get_author_profile_image_url($user2entity),
             ],
             'isdeleted' => false,
@@ -2650,9 +2658,6 @@ class mod_forum_external_testcase extends externallib_advanced_testcase {
         // Set the first created user to the test user.
         self::setUser($user1);
 
-        // Create course to add the module.
-        $course1 = self::getDataGenerator()->create_course();
-
         // Forum with tracking off.
         $record = new stdClass();
         $record->course = $course1->id;
@@ -2660,21 +2665,26 @@ class mod_forum_external_testcase extends externallib_advanced_testcase {
         $forum1context = context_module::instance($forum1->cmid);
 
         // Add discussions to the forums.
+        $time = time();
         $record = new stdClass();
         $record->course = $course1->id;
         $record->userid = $user1->id;
         $record->forum = $forum1->id;
+        $record->timemodified = $time + 100;
         $discussion1 = $forumgenerator->create_discussion($record);
         $discussion1firstpost = $postvault->get_first_post_for_discussion_ids([$discussion1->id]);
-        $discussion1firstpostobject = $legacypostmapper->to_legacy_object($discussion1firstpost[$discussion1->firstpost]);
+        $discussion1firstpost = $discussion1firstpost[$discussion1->firstpost];
+        $discussion1firstpostobject = $legacypostmapper->to_legacy_object($discussion1firstpost);
 
         $record = new stdClass();
         $record->course = $course1->id;
         $record->userid = $user1->id;
         $record->forum = $forum1->id;
+        $record->timemodified = $time + 200;
         $discussion2 = $forumgenerator->create_discussion($record);
         $discussion2firstpost = $postvault->get_first_post_for_discussion_ids([$discussion2->id]);
-        $discussion2firstpostobject = $legacypostmapper->to_legacy_object($discussion2firstpost[$discussion2->firstpost]);
+        $discussion2firstpost = $discussion2firstpost[$discussion2->firstpost];
+        $discussion2firstpostobject = $legacypostmapper->to_legacy_object($discussion2firstpost);
 
         // Add 1 reply to the discussion 1 from a different user.
         $record = new stdClass();
@@ -2716,9 +2726,19 @@ class mod_forum_external_testcase extends externallib_advanced_testcase {
 
         // Following line enrol and assign default role id to the user.
         // So the user automatically gets mod/forum:viewdiscussion on all forums of the course.
-        $this->getDataGenerator()->enrol_user($user1->id, $course1->id);
+        $this->getDataGenerator()->enrol_user($user1->id, $course1->id, 'teacher');
         $this->getDataGenerator()->enrol_user($user2->id, $course1->id);
-
+        // Changed display period for the discussions in past.
+        $discussion = new \stdClass();
+        $discussion->id = $discussion1->id;
+        $discussion->timestart = $time - 200;
+        $discussion->timeend = $time - 100;
+        $DB->update_record('forum_discussions', $discussion);
+        $discussion = new \stdClass();
+        $discussion->id = $discussion2->id;
+        $discussion->timestart = $time - 200;
+        $discussion->timeend = $time - 100;
+        $DB->update_record('forum_discussions', $discussion);
         // Create what we expect to be returned when querying the discussion.
         $expectedposts = array(
             'discussions' => array(),
@@ -2733,6 +2753,8 @@ class mod_forum_external_testcase extends externallib_advanced_testcase {
         $expectedposts['discussions'][0] = [
             'name' => $discussion1->name,
             'id' => $discussion1->id,
+            'timecreated' => $discussion1firstpost->get_time_created(),
+            'authorfullname' => $user1entity->get_full_name(),
             'posts' => [
                 'userposts' => [
                     [
@@ -2741,6 +2763,7 @@ class mod_forum_external_testcase extends externallib_advanced_testcase {
                         'parentid' => $discussion1reply1->parent,
                         'hasparent' => true,
                         'timecreated' => $discussion1reply1->created,
+                        'timemodified' => $discussion1reply1->modified,
                         'subject' => $discussion1reply1->subject,
                         'replysubject' => get_string('re', 'mod_forum') . " {$discussion1reply1->subject}",
                         'message' => file_rewrite_pluginfile_urls($discussion1reply1->message, 'pluginfile.php',
@@ -2765,34 +2788,36 @@ class mod_forum_external_testcase extends externallib_advanced_testcase {
                             'view' => true,
                             'edit' => true,
                             'delete' => true,
-                            'split' => false,
+                            'split' => true,
                             'reply' => true,
                             'export' => false,
                             'controlreadstatus' => false,
-                            'canreplyprivately' => false,
+                            'canreplyprivately' => true,
                             'selfenrol' => false
                         ],
                         'urls' => [
                             'view' => $urlfactory->get_view_post_url_from_post_id(
-                                    $discussion1reply1->discussion, $discussion1reply1->id)->out(false),
+                                $discussion1reply1->discussion, $discussion1reply1->id)->out(false),
                             'viewisolated' => $isolatedurluser->out(false),
                             'viewparent' => $urlfactory->get_view_post_url_from_post_id(
-                                    $discussion1reply1->discussion, $discussion1reply1->parent)->out(false),
+                                $discussion1reply1->discussion, $discussion1reply1->parent)->out(false),
                             'edit' => (new moodle_url('/mod/forum/post.php', [
-                                    'edit' => $discussion1reply1->id
+                                'edit' => $discussion1reply1->id
                             ]))->out(false),
                             'delete' => (new moodle_url('/mod/forum/post.php', [
-                                    'delete' => $discussion1reply1->id
+                                'delete' => $discussion1reply1->id
                             ]))->out(false),
-                            'split' => null,
+                            'split' => (new moodle_url('/mod/forum/post.php', [
+                                'prune' => $discussion1reply1->id
+                            ]))->out(false),
                             'reply' => (new moodle_url('/mod/forum/post.php#mformforum', [
-                                    'reply' => $discussion1reply1->id
+                                'reply' => $discussion1reply1->id
                             ]))->out(false),
                             'export' => null,
                             'markasread' => null,
                             'markasunread' => null,
                             'discuss' => $urlfactory->get_discussion_view_url_from_discussion_id(
-                                    $discussion1reply1->discussion)->out(false),
+                                $discussion1reply1->discussion)->out(false),
                         ],
                     ]
                 ],
@@ -2803,6 +2828,7 @@ class mod_forum_external_testcase extends externallib_advanced_testcase {
                         'parentid' => null,
                         'hasparent' => false,
                         'timecreated' => $discussion1firstpostobject->created,
+                        'timemodified' => $discussion1firstpostobject->modified,
                         'subject' => $discussion1firstpostobject->subject,
                         'replysubject' => get_string('re', 'mod_forum') . " {$discussion1firstpostobject->subject}",
                         'message' => file_rewrite_pluginfile_urls($discussion1firstpostobject->message, 'pluginfile.php',
@@ -2825,13 +2851,13 @@ class mod_forum_external_testcase extends externallib_advanced_testcase {
                         'charcount' => null,
                         'capabilities' => [
                             'view' => true,
-                            'edit' => false,
-                            'delete' => false,
+                            'edit' => true,
+                            'delete' => true,
                             'split' => false,
                             'reply' => true,
                             'export' => false,
                             'controlreadstatus' => false,
-                            'canreplyprivately' => false,
+                            'canreplyprivately' => true,
                             'selfenrol' => false
                         ],
                         'urls' => [
@@ -2839,8 +2865,12 @@ class mod_forum_external_testcase extends externallib_advanced_testcase {
                                 $discussion1firstpostobject->discussion, $discussion1firstpostobject->id)->out(false),
                             'viewisolated' => $isolatedurlparent->out(false),
                             'viewparent' => null,
-                            'edit' => null,
-                            'delete' => null,
+                            'edit' => (new moodle_url('/mod/forum/post.php', [
+                                'edit' => $discussion1firstpostobject->id
+                            ]))->out(false),
+                            'delete' => (new moodle_url('/mod/forum/post.php', [
+                                'delete' => $discussion1firstpostobject->id
+                            ]))->out(false),
                             'split' => null,
                             'reply' => (new moodle_url('/mod/forum/post.php#mformforum', [
                                 'reply' => $discussion1firstpostobject->id
@@ -2864,6 +2894,8 @@ class mod_forum_external_testcase extends externallib_advanced_testcase {
         $expectedposts['discussions'][1] = [
             'name' => $discussion2->name,
             'id' => $discussion2->id,
+            'timecreated' => $discussion2firstpost->get_time_created(),
+            'authorfullname' => $user1entity->get_full_name(),
             'posts' => [
                 'userposts' => [
                     [
@@ -2872,6 +2904,7 @@ class mod_forum_external_testcase extends externallib_advanced_testcase {
                         'parentid' => $discussion2reply1->parent,
                         'hasparent' => true,
                         'timecreated' => $discussion2reply1->created,
+                        'timemodified' => $discussion2reply1->modified,
                         'subject' => $discussion2reply1->subject,
                         'replysubject' => get_string('re', 'mod_forum') . " {$discussion2reply1->subject}",
                         'message' => file_rewrite_pluginfile_urls($discussion2reply1->message, 'pluginfile.php',
@@ -2896,11 +2929,11 @@ class mod_forum_external_testcase extends externallib_advanced_testcase {
                             'view' => true,
                             'edit' => true,
                             'delete' => true,
-                            'split' => false,
+                            'split' => true,
                             'reply' => true,
                             'export' => false,
                             'controlreadstatus' => false,
-                            'canreplyprivately' => false,
+                            'canreplyprivately' => true,
                             'selfenrol' => false
                         ],
                         'urls' => [
@@ -2915,7 +2948,9 @@ class mod_forum_external_testcase extends externallib_advanced_testcase {
                             'delete' => (new moodle_url('/mod/forum/post.php', [
                                 'delete' => $discussion2reply1->id
                             ]))->out(false),
-                            'split' => null,
+                            'split' => (new moodle_url('/mod/forum/post.php', [
+                                'prune' => $discussion2reply1->id
+                            ]))->out(false),
                             'reply' => (new moodle_url('/mod/forum/post.php#mformforum', [
                                 'reply' => $discussion2reply1->id
                             ]))->out(false),
@@ -2934,6 +2969,7 @@ class mod_forum_external_testcase extends externallib_advanced_testcase {
                         'parentid' => null,
                         'hasparent' => false,
                         'timecreated' => $discussion2firstpostobject->created,
+                        'timemodified' => $discussion2firstpostobject->modified,
                         'subject' => $discussion2firstpostobject->subject,
                         'replysubject' => get_string('re', 'mod_forum') . " {$discussion2firstpostobject->subject}",
                         'message' => file_rewrite_pluginfile_urls($discussion2firstpostobject->message, 'pluginfile.php',
@@ -2956,13 +2992,13 @@ class mod_forum_external_testcase extends externallib_advanced_testcase {
                         'charcount' => null,
                         'capabilities' => [
                             'view' => true,
-                            'edit' => false,
-                            'delete' => false,
+                            'edit' => true,
+                            'delete' => true,
                             'split' => false,
                             'reply' => true,
                             'export' => false,
                             'controlreadstatus' => false,
-                            'canreplyprivately' => false,
+                            'canreplyprivately' => true,
                             'selfenrol' => false
                         ],
                         'urls' => [
@@ -2970,8 +3006,12 @@ class mod_forum_external_testcase extends externallib_advanced_testcase {
                                 $discussion2firstpostobject->discussion, $discussion2firstpostobject->id)->out(false),
                             'viewisolated' => $isolatedurlparent->out(false),
                             'viewparent' => null,
-                            'edit' => null,
-                            'delete' => null,
+                            'edit' => (new moodle_url('/mod/forum/post.php', [
+                                'edit' => $discussion2firstpostobject->id
+                            ]))->out(false),
+                            'delete' => (new moodle_url('/mod/forum/post.php', [
+                                'delete' => $discussion2firstpostobject->id
+                            ]))->out(false),
                             'split' => null,
                             'reply' => (new moodle_url('/mod/forum/post.php#mformforum', [
                                 'reply' => $discussion2firstpostobject->id

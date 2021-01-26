@@ -319,20 +319,21 @@ class page_requirements_manager {
             }
 
             $this->M_cfg = array(
-                'wwwroot'             => $CFG->wwwroot,
-                'sesskey'             => sesskey(),
-                'sessiontimeout'      => $CFG->sessiontimeout,
-                'themerev'            => theme_get_revision(),
-                'slasharguments'      => (int)(!empty($CFG->slasharguments)),
-                'theme'               => $page->theme->name,
-                'iconsystemmodule'    => $iconsystem->get_amd_name(),
-                'jsrev'               => $this->get_jsrev(),
-                'admin'               => $CFG->admin,
-                'svgicons'            => $page->theme->use_svg_icons(),
-                'usertimezone'        => usertimezone(),
-                'contextid'           => $contextid,
-                'langrev'             => get_string_manager()->get_revision(),
-                'templaterev'         => $this->get_templaterev()
+                'wwwroot'               => $CFG->wwwroot,
+                'sesskey'               => sesskey(),
+                'sessiontimeout'        => $CFG->sessiontimeout,
+                'sessiontimeoutwarning' => $CFG->sessiontimeoutwarning,
+                'themerev'              => theme_get_revision(),
+                'slasharguments'        => (int)(!empty($CFG->slasharguments)),
+                'theme'                 => $page->theme->name,
+                'iconsystemmodule'      => $iconsystem->get_amd_name(),
+                'jsrev'                 => $this->get_jsrev(),
+                'admin'                 => $CFG->admin,
+                'svgicons'              => $page->theme->use_svg_icons(),
+                'usertimezone'          => usertimezone(),
+                'contextid'             => $contextid,
+                'langrev'               => get_string_manager()->get_revision(),
+                'templaterev'           => $this->get_templaterev()
             );
             if ($CFG->debugdeveloper) {
                 $this->M_cfg['developerdebug'] = true;
@@ -400,7 +401,7 @@ class page_requirements_manager {
      *
      * @return int the jsrev to use.
      */
-    protected function get_jsrev() {
+    public function get_jsrev() {
         global $CFG;
 
         if (empty($CFG->cachejs)) {
@@ -817,7 +818,7 @@ class page_requirements_manager {
                                                         array('dndenabled_inbox', 'moodle'), array('fileexists', 'moodle'), array('maxbytesfile', 'error'),
                                                         array('sizegb', 'moodle'), array('sizemb', 'moodle'), array('sizekb', 'moodle'), array('sizeb', 'moodle'),
                                                         array('maxareabytesreached', 'moodle'), array('serverconnection', 'error'),
-                                                        array('changesmadereallygoaway', 'moodle')
+                                                        array('changesmadereallygoaway', 'moodle'), array('complete', 'moodle')
                                                     ));
                     break;
             }
@@ -1390,6 +1391,7 @@ class page_requirements_manager {
         // First include must be to a module with no dependencies, this prevents multiple requests.
         $prefix = 'M.util.js_pending("core/first");';
         $prefix .= "require(['core/first'], function() {\n";
+        $prefix .= "require(['core/prefetch']);\n";
         $suffix = 'M.util.js_complete("core/first");';
         $suffix .= "\n});";
         $output .= html_writer::script($prefix . implode(";\n", $this->amdjscode) . $suffix);
@@ -1467,14 +1469,14 @@ class page_requirements_manager {
         );
 
         if ($this->yui3loader->combine) {
-            return '<script type="text/javascript" src="' .
+            return '<script src="' .
                     $this->yui3loader->local_comboBase .
                     implode('&amp;', $baserollups) .
                     '"></script>';
         } else {
             $code = '';
             foreach ($baserollups as $rollup) {
-                $code .= '<script type="text/javascript" src="'.$this->yui3loader->local_comboBase.$rollup.'"></script>';
+                $code .= '<script src="'.$this->yui3loader->local_comboBase.$rollup.'"></script>';
             }
             return $code;
         }
@@ -1607,6 +1609,9 @@ class page_requirements_manager {
         } else {
             $output .= html_writer::script('', $this->js_fix_url('/lib/babel-polyfill/polyfill.min.js'));
         }
+
+        // Include the Polyfills.
+        $output .= html_writer::script('', $this->js_fix_url('/lib/polyfills/polyfill.js'));
 
         // YUI3 JS needs to be loaded early in the body. It should be cached well by the browser.
         $output .= $this->get_yui3lib_headcode();

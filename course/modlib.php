@@ -72,7 +72,11 @@ function add_moduleinfo($moduleinfo, $course, $mform = null) {
     $completion = new completion_info($course);
     if ($completion->is_enabled()) {
         $newcm->completion                = $moduleinfo->completion;
-        $newcm->completiongradeitemnumber = $moduleinfo->completiongradeitemnumber;
+        if ($moduleinfo->completiongradeitemnumber === '') {
+            $newcm->completiongradeitemnumber = null;
+        } else {
+            $newcm->completiongradeitemnumber = $moduleinfo->completiongradeitemnumber;
+        }
         $newcm->completionview            = $moduleinfo->completionview;
         $newcm->completionexpected        = $moduleinfo->completionexpected;
     }
@@ -273,6 +277,13 @@ function edit_module_post_actions($moduleinfo, $course) {
             if ($update) {
                 $item->update();
             }
+
+            if (!empty($moduleinfo->add)) {
+                $gradecategory = $item->get_parent_category();
+                if ($item->set_aggregation_fields_for_aggregation(0, $gradecategory->aggregation)) {
+                    $item->update();
+                }
+            }
         }
     }
 
@@ -294,8 +305,8 @@ function edit_module_post_actions($moduleinfo, $course) {
 
             if (property_exists($moduleinfo, $elname) and $moduleinfo->$elname) {
                 // Check if this is a new outcome grade item.
+                $outcomeexists = false;
                 if ($items) {
-                    $outcomeexists = false;
                     foreach($items as $item) {
                         if ($item->outcomeid == $outcome->id) {
                             $outcomeexists = true;
@@ -329,6 +340,13 @@ function edit_module_post_actions($moduleinfo, $course) {
                 } else if (isset($moduleinfo->gradecat)) {
                     $outcomeitem->set_parent($moduleinfo->gradecat);
                 }
+
+                if (!$outcomeexists) {
+                    $gradecategory = $outcomeitem->get_parent_category();
+                    if ($outcomeitem->set_aggregation_fields_for_aggregation(0, $gradecategory->aggregation)) {
+                        $outcomeitem->update();
+                    }
+                }
             }
         }
     }
@@ -359,6 +377,8 @@ function edit_module_post_actions($moduleinfo, $course) {
     if ($hasgrades) {
         grade_regrade_final_grades($course->id);
     }
+
+    // To be removed (deprecated) with MDL-67526 (both lines).
     require_once($CFG->libdir.'/plagiarismlib.php');
     plagiarism_save_form_elements($moduleinfo);
 
@@ -411,7 +431,7 @@ function set_moduleinfo_defaults($moduleinfo) {
     // Convert the 'use grade' checkbox into a grade-item number: 0 if checked, null if not.
     if (isset($moduleinfo->completionusegrade) && $moduleinfo->completionusegrade) {
         $moduleinfo->completiongradeitemnumber = 0;
-    } else {
+    } else if (!isset($moduleinfo->completiongradeitemnumber)) {
         $moduleinfo->completiongradeitemnumber = null;
     }
 
@@ -524,7 +544,11 @@ function update_moduleinfo($cm, $moduleinfo, $course, $mform = null) {
         // the activity may be locked; if so, these should not be updated.
         if (!empty($moduleinfo->completionunlocked)) {
             $cm->completion = $moduleinfo->completion;
-            $cm->completiongradeitemnumber = $moduleinfo->completiongradeitemnumber;
+            if ($moduleinfo->completiongradeitemnumber === '') {
+                $cm->completiongradeitemnumber = null;
+            } else {
+                $cm->completiongradeitemnumber = $moduleinfo->completiongradeitemnumber;
+            }
             $cm->completionview = $moduleinfo->completionview;
         }
         // The expected date does not affect users who have completed the activity,
@@ -684,6 +708,7 @@ function get_moduleinfo_data($cm, $course) {
     $data->completionview     = $cm->completionview;
     $data->completionexpected = $cm->completionexpected;
     $data->completionusegrade = is_null($cm->completiongradeitemnumber) ? 0 : 1;
+    $data->completiongradeitemnumber = $cm->completiongradeitemnumber;
     $data->showdescription    = $cm->showdescription;
     $data->tags               = core_tag_tag::get_item_tags_array('core', 'course_modules', $cm->id);
     if (!empty($CFG->enableavailability)) {

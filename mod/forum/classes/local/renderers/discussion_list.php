@@ -144,12 +144,22 @@ class discussion_list {
      * @param   int         $sortorder The sort order to use when selecting the discussions in the list
      * @param   int         $pageno The zero-indexed page number to use
      * @param   int         $pagesize The number of discussions to show on the page
+     * @param   int         $displaymode The discussion display mode
      * @return  string      The rendered content for display
      */
-    public function render(stdClass $user, \cm_info $cm, ?int $groupid, ?int $sortorder, ?int $pageno, ?int $pagesize) : string {
+    public function render(
+        stdClass $user,
+        \cm_info $cm,
+        ?int $groupid,
+        ?int $sortorder,
+        ?int $pageno,
+        ?int $pagesize,
+        int $displaymode = null
+    ) : string {
         global $PAGE;
 
         $forum = $this->forum;
+        $course = $forum->get_course_record();
 
         $forumexporter = $this->exporterfactory->get_forum_exporter(
             $user,
@@ -176,8 +186,13 @@ class discussion_list {
             'forum' => (array) $forumexporter->export($this->renderer),
             'contextid' => $forum->get_context()->id,
             'cmid' => $cm->id,
+            'name' => $forum->get_name(),
+            'courseid' => $course->id,
+            'coursename' => $course->shortname,
+            'experimentaldisplaymode' => $displaymode == FORUM_MODE_NESTED_V2,
             'gradingcomponent' => $this->forumgradeitem->get_grading_component_name(),
             'gradingcomponentsubtype' => $this->forumgradeitem->get_grading_component_subtype(),
+            'sendstudentnotifications' => $forum->should_notify_students_default_when_grade_for_forum(),
             'hasanyactions' => $hasanyactions,
             'groupchangemenu' => groups_print_activity_menu(
                 $cm,
@@ -188,9 +203,11 @@ class discussion_list {
             'notifications' => $this->get_notifications($user, $groupid),
             'settings' => [
                 'excludetext' => true,
-                'togglemoreicon' => true
+                'togglemoreicon' => true,
+                'excludesubscription' => true
             ],
             'totaldiscussioncount' => $alldiscussionscount,
+            'userid' => $user->id,
             'visiblediscussioncount' => count($discussions)
         ];
 

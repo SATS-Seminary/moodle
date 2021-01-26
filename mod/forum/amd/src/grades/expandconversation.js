@@ -41,10 +41,13 @@ const findGradableNode = node => node.closest(ForumSelectors.expandConversation)
  *
  * @param {HTMLElement} rootNode The button that has been clicked
  */
-const showPostInContext = async(rootNode) => {
+const showPostInContext = async(rootNode, {
+    focusOnClose = null,
+} = {}) => {
     const postId = rootNode.dataset.postid;
     const discussionId = rootNode.dataset.discussionid;
     const discussionName = rootNode.dataset.name;
+    const experimentalDisplayMode = rootNode.dataset.experimentalDisplayMode == "1";
 
     const [
         allPosts,
@@ -58,34 +61,55 @@ const showPostInContext = async(rootNode) => {
         }),
     ]);
 
-    const userPosts = allPosts.posts.map((post) => {
-        post.subject = null;
+    const postsById = new Map(allPosts.posts.map(post => {
         post.readonly = true;
-        post.html.rating = null;
+        post.hasreplies = false;
+        post.replies = [];
+        return [post.id, post];
+    }));
 
-        return post;
+    let posts = [];
+    allPosts.posts.forEach(post => {
+        if (post.parentid) {
+            const parent = postsById.get(post.parentid);
+            if (parent) {
+                post.parentauthorname = parent.author.fullname;
+                parent.hasreplies = true;
+                parent.replies.push(post);
+            } else {
+                posts.push(post);
+            }
+        } else {
+            posts.push(post);
+        }
     });
 
     // Handle hidden event.
     modal.getRoot().on(ModalEvents.hidden, function() {
         // Destroy when hidden.
         modal.destroy();
+        try {
+            focusOnClose.focus();
+        } catch (e) {
+            // eslint-disable-line
+        }
+    });
+
+    modal.getRoot().on(ModalEvents.bodyRendered, () => {
+        const relevantPost = modal.getRoot()[0].querySelector(`#p${postId}`);
+        if (relevantPost) {
+            relevantPost.scrollIntoView({behavior: "smooth"});
+        }
     });
 
     modal.show();
 
     // Note: We do not use await here because it messes with the Modal transitions.
-    const templatePromise = Templates.render('mod_forum/grades/grader/discussion/post_modal', userPosts);
-    modal.setBody(templatePromise);
-    // eslint-disable-next-line promise/catch-or-return
-    templatePromise.then(() => {
-        const relevantPost = modal.getRoot()[0].querySelector(`#p${postId}`);
-        if (relevantPost) {
-            relevantPost.scrollIntoView({behavior: "smooth"});
-        }
-
-        return;
+    const templatePromise = Templates.render('mod_forum/grades/grader/discussion/post_modal', {
+        posts,
+        experimentaldisplaymode: experimentalDisplayMode
     });
+    modal.setBody(templatePromise);
 };
 
 /**
@@ -101,7 +125,9 @@ export const registerEventListeners = (rootNode) => {
             e.preventDefault();
 
             try {
-                showPostInContext(rootNode);
+                showPostInContext(rootNode, {
+                    focusOnClose: e.target,
+                });
             } catch (err) {
                 showException(err);
             }

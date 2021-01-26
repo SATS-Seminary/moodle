@@ -138,6 +138,7 @@ class mod_forum_external extends external_api {
                     'assesstimefinish' => new external_value(PARAM_INT, 'Assess finish time'),
                     'scale' => new external_value(PARAM_INT, 'Scale'),
                     'grade_forum' => new external_value(PARAM_INT, 'Whole forum grade'),
+                    'grade_forum_notify' => new external_value(PARAM_INT, 'Whether to send notifications to students upon grading by default'),
                     'maxbytes' => new external_value(PARAM_INT, 'Maximum attachment size'),
                     'maxattachments' => new external_value(PARAM_INT, 'Maximum number of attachments'),
                     'forcesubscribe' => new external_value(PARAM_INT, 'Force users to subscribe'),
@@ -225,6 +226,8 @@ class mod_forum_external extends external_api {
 
         return [
             'posts' => $postbuilder->build($USER, [$forum], [$discussion], $posts),
+            'forumid' => $discussion->get_forum_id(),
+            'courseid' => $discussion->get_course_id(),
             'ratinginfo' => \core_rating\external\util::get_rating_info(
                 $legacydatamapper->get_forum_data_mapper()->to_legacy_object($forum),
                 $forum->get_context(),
@@ -257,6 +260,8 @@ class mod_forum_external extends external_api {
     public static function get_discussion_posts_returns() {
         return new external_single_structure([
             'posts' => new external_multiple_structure(\mod_forum\local\exporters\post::get_read_structure()),
+            'forumid' => new external_value(PARAM_INT, 'The forum id'),
+            'courseid' => new external_value(PARAM_INT, 'The forum course id'),
             'ratinginfo' => \core_rating\external\util::external_ratings_structure(),
             'warnings' => new external_warnings()
         ]);
@@ -288,7 +293,7 @@ class mod_forum_external extends external_api {
      *
      * @return array the forum post details
      * @since Moodle 2.7
-     * @todo MDL-65252 This will be removed in Moodle 4.1
+     * @todo MDL-65252 This will be removed in Moodle 3.11
      */
     public static function get_forum_discussion_posts($discussionid, $sortby = "created", $sortdirection = "DESC") {
         global $CFG, $DB, $USER, $PAGE;
@@ -462,7 +467,7 @@ class mod_forum_external extends external_api {
                                 'created' => new external_value(PARAM_INT, 'Creation time'),
                                 'modified' => new external_value(PARAM_INT, 'Time modified'),
                                 'mailed' => new external_value(PARAM_INT, 'Mailed?'),
-                                'subject' => new external_value(PARAM_TEXT, 'The post subject'),
+                                'subject' => new external_value(PARAM_RAW, 'The post subject'),
                                 'message' => new external_value(PARAM_RAW, 'The post message'),
                                 'messageformat' => new external_format_value('message'),
                                 'messagetrust' => new external_value(PARAM_INT, 'Can we trust?'),
@@ -496,6 +501,15 @@ class mod_forum_external extends external_api {
      * @return  bool
      */
     public static function get_forum_discussion_posts_is_deprecated() {
+        return true;
+    }
+
+    /**
+     * Mark the get_forum_discussions_paginated web service as deprecated.
+     *
+     * @return  bool
+     */
+    public static function get_forum_discussions_paginated_is_deprecated() {
         return true;
     }
 
@@ -711,7 +725,7 @@ class mod_forum_external extends external_api {
                         new external_single_structure(
                             array(
                                 'id' => new external_value(PARAM_INT, 'Post id'),
-                                'name' => new external_value(PARAM_TEXT, 'Discussion name'),
+                                'name' => new external_value(PARAM_RAW, 'Discussion name'),
                                 'groupid' => new external_value(PARAM_INT, 'Group id'),
                                 'timemodified' => new external_value(PARAM_INT, 'Time modified'),
                                 'usermodified' => new external_value(PARAM_INT, 'The id of the user who last modified'),
@@ -723,7 +737,7 @@ class mod_forum_external extends external_api {
                                 'created' => new external_value(PARAM_INT, 'Creation time'),
                                 'modified' => new external_value(PARAM_INT, 'Time modified'),
                                 'mailed' => new external_value(PARAM_INT, 'Mailed?'),
-                                'subject' => new external_value(PARAM_TEXT, 'The post subject'),
+                                'subject' => new external_value(PARAM_RAW, 'The post subject'),
                                 'message' => new external_value(PARAM_RAW, 'The post message'),
                                 'messageformat' => new external_format_value('message'),
                                 'messagetrust' => new external_value(PARAM_INT, 'Can we trust?'),
@@ -997,7 +1011,7 @@ class mod_forum_external extends external_api {
                     new external_single_structure(
                         array(
                             'id' => new external_value(PARAM_INT, 'Post id'),
-                            'name' => new external_value(PARAM_TEXT, 'Discussion name'),
+                            'name' => new external_value(PARAM_RAW, 'Discussion name'),
                             'groupid' => new external_value(PARAM_INT, 'Group id'),
                             'timemodified' => new external_value(PARAM_INT, 'Time modified'),
                             'usermodified' => new external_value(PARAM_INT, 'The id of the user who last modified'),
@@ -1009,7 +1023,7 @@ class mod_forum_external extends external_api {
                             'created' => new external_value(PARAM_INT, 'Creation time'),
                             'modified' => new external_value(PARAM_INT, 'Time modified'),
                             'mailed' => new external_value(PARAM_INT, 'Mailed?'),
-                            'subject' => new external_value(PARAM_TEXT, 'The post subject'),
+                            'subject' => new external_value(PARAM_RAW, 'The post subject'),
                             'message' => new external_value(PARAM_RAW, 'The post message'),
                             'messageformat' => new external_format_value('message'),
                             'messagetrust' => new external_value(PARAM_INT, 'Can we trust?'),
@@ -1318,7 +1332,7 @@ class mod_forum_external extends external_api {
             $preferredformat = editors_get_preferred_format();
             // If the post is not HTML and the preferred format is HTML, convert to it.
             if ($params['messageformat'] != FORMAT_HTML and $preferredformat == FORMAT_HTML) {
-                $params['message'] = format_text($params['message'], $params['messageformat'], ['context' => $context]);
+                $params['message'] = format_text($params['message'], $params['messageformat'], ['filter' => false]);
             }
             $params['messageformat'] = $preferredformat;
         }
@@ -2205,8 +2219,15 @@ class mod_forum_external extends external_api {
         $managerfactory = mod_forum\local\container::get_manager_factory();
         $capabilitymanager = $managerfactory->get_capability_manager($forum);
 
-        $discussionvault = $vaultfactory->get_discussion_vault();
-        $discussions = $discussionvault->get_all_discussions_in_forum($forum, 'timemodified ASC, id ASC');
+        $discussionsummariesvault = $vaultfactory->get_discussions_in_forum_vault();
+        $discussionsummaries = $discussionsummariesvault->get_from_forum_id(
+            $forum->get_id(),
+            true,
+            null,
+            $discussionsummariesvault::SORTORDER_CREATED_ASC,
+            0,
+            0
+        );
 
         $postvault = $vaultfactory->get_post_vault();
 
@@ -2214,7 +2235,8 @@ class mod_forum_external extends external_api {
         $postbuilder = $builderfactory->get_exported_posts_builder();
 
         $builtdiscussions = [];
-        foreach ($discussions as $id => $discussion) {
+        foreach ($discussionsummaries as $discussionsummary) {
+            $discussion = $discussionsummary->get_discussion();
             $posts = $postvault->get_posts_in_discussion_for_user_id(
                     $discussion->get_id(),
                     $user->id,
@@ -2232,18 +2254,23 @@ class mod_forum_external extends external_api {
             $parentposts = [];
             if ($parentids) {
                 $parentposts = $postbuilder->build(
-                    $user,
+                    $USER,
                     [$forum],
                     [$discussion],
                     $postvault->get_from_ids(array_values($parentids))
                 );
             }
 
+            $discussionauthor = $discussionsummary->get_first_post_author();
+            $firstpost = $discussionsummary->get_first_post();
+
             $builtdiscussions[] = [
                 'name' => $discussion->get_name(),
                 'id' => $discussion->get_id(),
+                'timecreated' => $firstpost->get_time_created(),
+                'authorfullname' => $discussionauthor->get_full_name(),
                 'posts' => [
-                    'userposts' => $postbuilder->build($user, [$forum], [$discussion], $posts),
+                    'userposts' => $postbuilder->build($USER, [$forum], [$discussion], $posts),
                     'parentposts' => $parentposts,
                 ],
             ];
@@ -2284,6 +2311,8 @@ class mod_forum_external extends external_api {
                     new external_single_structure([
                         'name' => new external_value(PARAM_RAW, 'Name of the discussion'),
                         'id' => new external_value(PARAM_INT, 'ID of the discussion'),
+                        'timecreated' => new external_value(PARAM_INT, 'Timestamp of the discussion start'),
+                        'authorfullname' => new external_value(PARAM_RAW, 'Full name of the user that started the discussion'),
                         'posts' => new external_single_structure([
                             'userposts' => new external_multiple_structure(\mod_forum\local\exporters\post::get_read_structure()),
                             'parentposts' => new external_multiple_structure(\mod_forum\local\exporters\post::get_read_structure()),

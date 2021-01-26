@@ -27,6 +27,7 @@ import Templates from 'core/templates';
 import * as Grader from '../local/grades/grader';
 import Notification from 'core/notification';
 import CourseRepository from 'core_course/repository';
+import {relativeUrl} from 'core/url';
 
 const templateNames = {
     contentRegion: 'mod_forum/grades/grader/discussion/posts',
@@ -36,9 +37,10 @@ const templateNames = {
  * Curried function with CMID set, this is then used in unified grader as a fetch a users content.
  *
  * @param {Number} cmid
+ * @param {Bool} experimentalDisplayMode
  * @return {Function}
  */
-const getContentForUserIdFunction = (cmid) => (userid) => {
+const getContentForUserIdFunction = (cmid, experimentalDisplayMode) => (userid) => {
     /**
      * Given the parent function is called with the second param set execute the partially executed function.
      *
@@ -48,6 +50,7 @@ const getContentForUserIdFunction = (cmid) => (userid) => {
         .then(context => {
             // Rebuild the returned data for the template.
             context.discussions = context.discussions.map(discussionPostMapper);
+            context.experimentaldisplaymode = experimentalDisplayMode ? true : false;
 
             return Templates.render(templateNames.contentRegion, context);
         })
@@ -59,10 +62,11 @@ const getContentForUserIdFunction = (cmid) => (userid) => {
  * The function curried fetches all users in a course for a given CMID.
  *
  * @param {Number} cmid
+ * @param {Number} groupID
  * @return {Array} Array of users for a given context.
  */
-const getUsersForCmidFunction = (cmid) => async() => {
-    const context = await CourseRepository.getUsersFromCourseModuleID(cmid);
+const getUsersForCmidFunction = (cmid, groupID) => async() => {
+    const context = await CourseRepository.getUsersFromCourseModuleID(cmid, groupID);
 
     return context.users;
 };
@@ -81,18 +85,26 @@ const discussionPostMapper = (discussion) => {
     const parentMap = new Map();
     discussion.posts.parentposts.forEach(post => parentMap.set(post.id, post));
     const userPosts = discussion.posts.userposts.map(post => {
-        post.subject = null;
         post.readonly = true;
-        post.starter = !post.parentid;
-        post.parent = parentMap.get(post.parentid);
-        post.html.rating = null;
+        post.hasreplies = false;
+        post.replies = [];
 
-        return post;
+        const parent = post.parentid ? parentMap.get(post.parentid) : null;
+        if (parent) {
+            parent.hasreplies = false;
+            parent.replies = [];
+            parent.readonly = true;
+            post.parentauthorname = parent.author.fullname;
+        }
+
+        return {
+            parent,
+            post
+        };
     });
 
     return {
-        id: discussion.id,
-        name: discussion.name,
+        ...discussion,
         posts: userPosts,
     };
 };
@@ -102,7 +114,9 @@ const discussionPostMapper = (discussion) => {
  *
  * @param {HTMLElement} rootNode the root HTML element describing what is to be graded
  */
-const launchWholeForumGrading = async(rootNode) => {
+const launchWholeForumGrading = async(rootNode, {
+    focusOnClose = null,
+} = {}) => {
     const data = rootNode.dataset;
     const gradingPanelFunctions = await Grader.getGradingPanelFunctions(
         'mod_forum',
@@ -112,15 +126,48 @@ const launchWholeForumGrading = async(rootNode) => {
         data.gradableItemtype
     );
 
+    const groupID = data.group ? data.group : 0;
+
     await Grader.launch(
-        getUsersForCmidFunction(data.cmid),
-        getContentForUserIdFunction(data.cmid),
+        getUsersForCmidFunction(data.cmid, groupID),
+        getContentForUserIdFunction(data.cmid, data.experimentalDisplayMode == "1"),
         gradingPanelFunctions.getter,
         gradingPanelFunctions.setter,
         {
             groupid: data.groupid,
             initialUserId: data.initialuserid,
-            moduleName: data.name
+            moduleName: data.name,
+            courseName: data.courseName,
+            courseUrl: relativeUrl('/course/view.php', {id: data.courseId}),
+            sendStudentNotifications: data.sendStudentNotifications,
+            focusOnClose,
+        }
+    );
+};
+
+/**
+ * Launch the Grader.
+ *
+ * @param {HTMLElement} rootNode the root HTML element describing what is to be graded
+ */
+const launchViewGrading = async(rootNode, {
+    focusOnClose = null,
+} = {}) => {
+    const data = rootNode.dataset;
+    const gradingPanelFunctions = await Grader.getGradingPanelFunctions(
+        'mod_forum',
+        data.contextid,
+        data.gradingComponent,
+        data.gradingComponentSubtype,
+        data.gradableItemtype
+    );
+
+    await Grader.view(
+        gradingPanelFunctions.getter,
+        data.userid,
+        data.name,
+        {
+            focusOnClose,
         }
     );
 };
@@ -142,7 +189,32 @@ export const registerLaunchListeners = () => {
                 // at that point and the default action is implemented.
                 e.preventDefault();
                 try {
-                    await launchWholeForumGrading(rootNode);
+                    await launchWholeForumGrading(rootNode, {
+                        focusOnClose: e.target,
+                    });
+                } catch (error) {
+                    Notification.exception(error);
+                }
+            } else {
+                throw Error('Unable to find a valid gradable item');
+            }
+        }
+        if (e.target.matches(Selectors.viewGrade)) {
+            e.preventDefault();
+            const rootNode = findGradableNode(e.target);
+
+            if (!rootNode) {
+                throw Error('Unable to find a gradable item');
+            }
+
+            if (rootNode.matches(Selectors.gradableItems.wholeForum)) {
+                // Note: The preventDefault must be before any async function calls because the function becomes async
+                // at that point and the default action is implemented.
+                e.preventDefault();
+                try {
+                    await launchViewGrading(rootNode, {
+                        focusOnClose: e.target,
+                    });
                 } catch (error) {
                     Notification.exception(error);
                 }

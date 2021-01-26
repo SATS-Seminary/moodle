@@ -59,7 +59,7 @@ class store_test extends advanced_testcase {
 
         $this->expectException(coding_exception::class);
         $this->expectExceptionMessage("The 'foo' item is not valid for the 'mod_invalid' component");
-        store::execute('mod_invalid', 1, 'foo', 2, 'formdata');
+        store::execute('mod_invalid', 1, 'foo', 2, false, 'formdata');
     }
 
     /**
@@ -72,7 +72,7 @@ class store_test extends advanced_testcase {
 
         $this->expectException(coding_exception::class);
         $this->expectExceptionMessage("The 'foo' item is not valid for the 'mod_forum' component");
-        store::execute('mod_forum', 1, 'foo', 2, 'formdata');
+        store::execute('mod_forum', 1, 'foo', 2, false, 'formdata');
     }
 
     /**
@@ -92,7 +92,7 @@ class store_test extends advanced_testcase {
         $gradeitem = component_gradeitem::instance('mod_forum', $forum->get_context(), 'forum');
 
         $this->expectException(moodle_exception::class);
-        store::execute('mod_forum', (int) $forum->get_context()->id, 'forum', (int) $student->id, 'formdata');
+        store::execute('mod_forum', (int) $forum->get_context()->id, 'forum', (int) $student->id, false, 'formdata');
     }
 
     /**
@@ -111,7 +111,7 @@ class store_test extends advanced_testcase {
 
         $this->expectException(moodle_exception::class);
         $this->expectExceptionMessage("Grading is not enabled");
-        store::execute('mod_forum', (int) $forum->get_context()->id, 'forum', (int) $student->id, 'formdata');
+        store::execute('mod_forum', (int) $forum->get_context()->id, 'forum', (int) $student->id, false, 'formdata');
     }
 
     /**
@@ -146,7 +146,7 @@ class store_test extends advanced_testcase {
             'advancedgrading' => $submissiondata,
         ], '', '&');
 
-        $result = store::execute('mod_forum', (int) $forum->get_context()->id, 'forum', (int) $student->id, $formdata);
+        $result = store::execute('mod_forum', (int) $forum->get_context()->id, 'forum', (int) $student->id, false, $formdata);
         $result = external_api::clean_returnvalue(store::execute_returns(), $result);
 
         $this->assertIsArray($result);
@@ -154,16 +154,27 @@ class store_test extends advanced_testcase {
 
         $this->assertEquals('gradingform_rubric/grades/grader/gradingpanel', $result['templatename']);
 
-        $this->assertArrayHasKey('grade', $result);
-        $this->assertIsArray($result['grade']);
-
-        $this->assertIsInt($result['grade']['timecreated']);
-        $this->assertArrayHasKey('timemodified', $result['grade']);
-        $this->assertIsInt($result['grade']['timemodified']);
-
         $this->assertArrayHasKey('warnings', $result);
         $this->assertIsArray($result['warnings']);
         $this->assertEmpty($result['warnings']);
+
+        // Test the grade array items.
+        $this->assertArrayHasKey('grade', $result);
+        $this->assertIsArray($result['grade']);
+        $this->assertIsInt($result['grade']['timecreated']);
+
+        $this->assertArrayHasKey('timemodified', $result['grade']);
+        $this->assertIsInt($result['grade']['timemodified']);
+
+        $this->assertArrayHasKey('usergrade', $result['grade']);
+        $this->assertEquals(1, $result['grade']['usergrade']);
+
+        $this->assertArrayHasKey('maxgrade', $result['grade']);
+        $this->assertIsInt($result['grade']['maxgrade']);
+        $this->assertEquals(2, $result['grade']['maxgrade']);
+
+        $this->assertArrayHasKey('gradedby', $result['grade']);
+        $this->assertEquals(fullname($teacher), $result['grade']['gradedby']);
 
         $this->assertArrayHasKey('criteria', $result['grade']);
         $criteria = $result['grade']['criteria'];
